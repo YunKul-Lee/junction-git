@@ -31,7 +31,7 @@ A branch sidebar for Git in VS Code. Browse local and remote branches, switch be
 
 Junction builds the pull request address from your remote URL. **github.com, gitlab.com and bitbucket.org need no configuration**: the page opens right away.
 
-For a self-hosted server, list it in `junction.pullRequest.servers`. Each entry has a `gitHost` (the host in your remote URL, or an SSH alias from `~/.ssh/config`), the `webUrl` of the web UI, and the `type`: `"bitbucket-cloud"`, `"bitbucket-datacenter"`, `"github"`, `"gitlab"`, or `"none"` for a server without pull requests (plain git over SSH, Gerrit, …). A `"none"` entry needs no `webUrl` and hides the pull request menu for that server.
+For a self-hosted server, list it in `junction.pullRequest.servers`. Each entry has a `gitHost` (the host in your remote URL, or an SSH alias from `~/.ssh/config`), the `webUrl` of the web UI, and the `type`: `"bitbucket-cloud"`, `"bitbucket-datacenter"`, `"github"`, `"gitlab"`, or `"none"` for a server without pull requests (plain git over SSH, Gerrit, …). A `"none"` entry needs no `webUrl` and turns pull requests off for that server: if no open repository has a remote with pull requests, the **Create Pull Request** menu is hidden; otherwise running it on such a repository just tells you pull requests are off. If `webUrl` is left out for another type, it defaults to `https://<gitHost>`.
 
 ```jsonc
 {

@@ -86,6 +86,27 @@ export function guessDataCenter(remoteUrl: string): PrServer | undefined {
   return { gitHost: parsed.host, webUrl, type: 'bitbucket-datacenter' };
 }
 
+const DEFAULT_TYPE_ORDER: ServerType[] = ['bitbucket-datacenter', 'bitbucket-cloud', 'github', 'gitlab'];
+
+/**
+ * Server types in the order the first-use prompt offers them, most likely first: Bitbucket Data Center when
+ * the Data Center guess matches, else a type named in the host (e.g. `gitlab.acme.com`). `none` is always last.
+ */
+export function serverTypeOrder(remoteUrl: string): ServerType[] {
+  const host = parseRemote(remoteUrl)?.host ?? '';
+  const first: ServerType | undefined = guessDataCenter(remoteUrl)
+    ? 'bitbucket-datacenter'
+    : host.includes('github')
+      ? 'github'
+      : host.includes('gitlab')
+        ? 'gitlab'
+        : host.includes('bitbucket')
+          ? 'bitbucket-datacenter'
+          : undefined;
+  const rest = DEFAULT_TYPE_ORDER.filter((t) => t !== first);
+  return [...(first ? [first] : []), ...rest, 'none'];
+}
+
 /** The repository path on the server: for an http(s) remote, the web address's own path prefix is removed. */
 function repoPath(base: string, parsed: ParsedRemote): string[] {
   if (parsed.scheme !== 'http' && parsed.scheme !== 'https') return parsed.segments;
@@ -104,10 +125,11 @@ const ghBranch = (s: string): string => encodeURIComponent(s).replace(/%2F/g, '/
 
 /** Builds the "create pull request" page URL, or undefined if it cannot be built. */
 export function buildPrUrl(server: PrServer, remoteUrl: string, source: string, target: string): string | undefined {
-  if (server.type === 'none' || !server.webUrl) return undefined;
+  if (server.type === 'none') return undefined;
   const parsed = parseRemote(remoteUrl);
   if (!parsed || parsed.segments.length < 2) return undefined;
-  const base = server.webUrl.replace(/\/+$/, '');
+  // A hand-written entry may leave out webUrl when the web host is the git host.
+  const base = (server.webUrl || `https://${server.gitHost}`).replace(/\/+$/, '');
   const enc = encodeURIComponent;
   const repo = parsed.segments[parsed.segments.length - 1];
   const owner = parsed.segments[parsed.segments.length - 2];

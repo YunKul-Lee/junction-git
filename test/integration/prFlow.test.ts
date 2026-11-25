@@ -128,6 +128,13 @@ describe('createPrFlow', () => {
     expect(env.saved[0].webUrl).toBe('https://git.acme.com');
   });
 
+  it('offers the host-hinted type first for an unknown host', async () => {
+    await repo.sh('config', 'remote.origin.url', 'git@gitlab.acme.com:team/web.git');
+    const ui = new FakeUi([undefined]);
+    await run(ui, new Env([]));
+    expect(ui.of('pick')[0].items?.[0].value).toBe('gitlab');
+  });
+
   it('saves a GitLab server picked for an unknown host and opens a merge request page', async () => {
     await repo.sh('config', 'remote.origin.url', 'git@git.acme.com:team/web.git');
     const ui = new FakeUi(['gitlab', 'https://git.acme.com']);

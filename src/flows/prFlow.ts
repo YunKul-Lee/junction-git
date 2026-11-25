@@ -1,7 +1,7 @@
 import { remoteUrl } from '../git/queries';
 import { BranchRef, Git } from '../git/types';
 import { RepoSnapshot } from '../model/repoModel';
-import { PrServer, ServerType, buildPrUrl, findServer, guessDataCenter, guessPublic, parseRemote } from '../pr/providers';
+import { PrServer, ServerType, buildPrUrl, findServer, guessDataCenter, guessPublic, parseRemote, serverTypeOrder } from '../pr/providers';
 import { pushFlow } from './branchFlows';
 import { FlowResult, Ui } from './ui';
 
@@ -25,6 +25,14 @@ export interface PrCtx {
 }
 
 // Messages are inline `{ key, args }` literals on purpose; see branchFlows.ts.
+
+const TYPE_ITEMS: Record<ServerType, { label: string; labelMsg?: { key: string }; value: ServerType }> = {
+  'bitbucket-datacenter': { label: 'Bitbucket Data Center', value: 'bitbucket-datacenter' },
+  'bitbucket-cloud': { label: 'Bitbucket Cloud', value: 'bitbucket-cloud' },
+  github: { label: 'GitHub', value: 'github' },
+  gitlab: { label: 'GitLab', value: 'gitlab' },
+  none: { label: 'No pull requests on this server', labelMsg: { key: 'No pull requests on this server' }, value: 'none' },
+};
 
 function remoteName(snap: RepoSnapshot, b: BranchRef): string | undefined {
   const of = (ref?: string): string | undefined => (ref ? snap.remotes.find((r) => ref.startsWith(`${r}/`)) : undefined);
@@ -67,13 +75,7 @@ export async function createPrFlow(c: PrCtx, b: BranchRef, target?: string): Pro
   }
   if (!server) {
     const type = await ui.pick<ServerType>(
-      [
-        { label: 'Bitbucket Data Center', value: 'bitbucket-datacenter' },
-        { label: 'Bitbucket Cloud', value: 'bitbucket-cloud' },
-        { label: 'GitHub', value: 'github' },
-        { label: 'GitLab', value: 'gitlab' },
-        { label: 'No pull requests on this server', labelMsg: { key: 'No pull requests on this server' }, value: 'none' },
-      ],
+      serverTypeOrder(url).map((t) => TYPE_ITEMS[t]),
       { key: 'What kind of server is {0}?', args: [host] },
     );
     if (!type) {

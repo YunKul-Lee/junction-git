@@ -36,6 +36,10 @@ describe('docs', () => {
     }
   });
 
+  it('does not promise per-server menu hiding', () => {
+    expect(readme).not.toContain('hides the pull request menu for that server');
+  });
+
   it('matches the package version in the changelog', () => {
     expect(pkg.version).toBe('0.2.0');
     expect(changelog).toContain(`## ${pkg.version}`);

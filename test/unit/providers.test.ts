@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPrUrl, findServer, guessDataCenter, guessPublic, parseRemote, prAvailable, serversFromScopes, PrServer } from '../../src/pr/providers';
+import { buildPrUrl, findServer, guessDataCenter, guessPublic, parseRemote, prAvailable, serversFromScopes, serverTypeOrder, PrServer } from '../../src/pr/providers';
 
 const enc = encodeURIComponent;
 const DC_QUERY = (src: string, dst: string) =>
@@ -181,9 +181,14 @@ describe('buildPrUrl for GitHub and GitLab', () => {
     expect(buildPrUrl(self, 'git@gitlab.acme.com:acme/web.git', 'feature/x', 'develop')).toBe(expected);
   });
 
-  it('returns undefined for none, a missing webUrl, or a single-segment path', () => {
+  it('defaults a missing webUrl to https://<gitHost>', () => {
+    expect(buildPrUrl({ gitHost: 'github.acme.com', type: 'github' }, 'git@github.acme.com:a/b.git', 'x', 'y')).toBe(
+      'https://github.acme.com/a/b/compare/y...x?expand=1',
+    );
+  });
+
+  it('returns undefined for none or a single-segment path', () => {
     expect(buildPrUrl({ gitHost: 'h', type: 'none' }, 'git@h:a/b.git', 'x', 'y')).toBeUndefined();
-    expect(buildPrUrl({ gitHost: 'h', type: 'github' }, 'git@h:a/b.git', 'x', 'y')).toBeUndefined();
     expect(buildPrUrl(github, 'https://github.com/web.git', 'x', 'y')).toBeUndefined();
     expect(buildPrUrl(gitlab, 'https://gitlab.com/web.git', 'x', 'y')).toBeUndefined();
   });
@@ -214,5 +219,25 @@ describe('serversFromScopes', () => {
   it('lets the workspace entry win in findServer', () => {
     const list = serversFromScopes({ workspaceValue: [{ ...s('h'), webUrl: 'https://ws' }], globalValue: [s('h')] });
     expect(findServer('git@h:P/r.git', list)?.webUrl).toBe('https://ws');
+  });
+});
+
+describe('serverTypeOrder', () => {
+  it('puts Bitbucket Data Center first when the Data Center guess matches', () => {
+    expect(serverTypeOrder('ssh://git@git.acme.com:7999/PROJ/web.git')[0]).toBe('bitbucket-datacenter');
+  });
+
+  it.each([
+    ['git@github.acme.com:a/b.git', 'github'],
+    ['https://gitlab.acme.com/a/b.git', 'gitlab'],
+    ['git@bitbucket.acme.com:a/b.git', 'bitbucket-datacenter'],
+  ])('puts the type hinted by the host first: %s', (url, first) => {
+    expect(serverTypeOrder(url)[0]).toBe(first);
+  });
+
+  it('lists every type once with none last', () => {
+    const order = serverTypeOrder('git@git.acme.com:a/b.git');
+    expect([...order].sort()).toEqual(['bitbucket-cloud', 'bitbucket-datacenter', 'github', 'gitlab', 'none']);
+    expect(order[order.length - 1]).toBe('none');
   });
 });
