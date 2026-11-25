@@ -113,3 +113,23 @@ export function describeBranch(b: BranchRef, badges: BranchBadges): string {
   }
   return parts.join('  ');
 }
+
+/** Quick-checkout order: local branches (recent checkouts, then newest commit), then remote branches (newest commit). */
+export function quickCheckoutOrder(branches: BranchRef[], recent: string[], head?: string): BranchRef[] {
+  const rank = new Map<string, number>();
+  recent.forEach((n, i) => {
+    if (!rank.has(n)) {
+      rank.set(n, i);
+    }
+  });
+  const byTime = (a: BranchRef, b: BranchRef): number =>
+    b.committerTime - a.committerTime || byName(a.shortName, b.shortName);
+  const usable = branches.filter(
+    (b) => !b.isHead && b.name !== head && !(b.kind === 'remote' && b.shortName === 'HEAD'),
+  );
+  const locals = usable
+    .filter((b) => b.kind === 'local')
+    .sort((a, b) => (rank.get(a.name) ?? Infinity) - (rank.get(b.name) ?? Infinity) || byTime(a, b));
+  const remotes = usable.filter((b) => b.kind === 'remote').sort(byTime);
+  return [...locals, ...remotes];
+}

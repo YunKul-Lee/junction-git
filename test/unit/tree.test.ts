@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BranchRef } from '../../src/git/types';
-import { buildEntries, describeBranch, TreeEntry } from '../../src/model/tree';
+import { buildEntries, describeBranch, quickCheckoutOrder, TreeEntry } from '../../src/model/tree';
 
 function br(shortName: string, extra: Partial<BranchRef> = {}): BranchRef {
   return {
@@ -67,4 +67,32 @@ describe('describeBranch', () => {
   it('nothing', () => expect(describeBranch(b(), { merged: false, isBase: false })).toBe(''));
   it('merged wins over gone', () =>
     expect(describeBranch(b({ upstreamGone: true }), { merged: true, isBase: false })).toBe('✓ merged'));
+});
+
+describe('quickCheckoutOrder', () => {
+  const remote = (n: string, t: number, extra: Partial<BranchRef> = {}): BranchRef =>
+    br(`origin/${n}`, { kind: 'remote', shortName: n, remote: 'origin', committerTime: t, ...extra });
+
+  it('lists all locals (recent first, then newest) before any remote, even a newer remote', () => {
+    const out = quickCheckoutOrder(
+      [
+        remote('fresh', 9000),
+        br('never-checked-out', { committerTime: 10 }),
+        br('older', { committerTime: 500 }),
+        br('recent-one', { committerTime: 100 }),
+        remote('stale', 20),
+      ],
+      ['recent-one'],
+    );
+    expect(out.map((b) => b.name)).toEqual(['recent-one', 'older', 'never-checked-out', 'origin/fresh', 'origin/stale']);
+  });
+
+  it('excludes the current branch and remote HEAD', () => {
+    const out = quickCheckoutOrder(
+      [br('main', { isHead: true }), br('dev'), remote('HEAD', 5), remote('main', 5)],
+      [],
+      'main',
+    );
+    expect(out.map((b) => b.name)).toEqual(['dev', 'origin/main']);
+  });
 });

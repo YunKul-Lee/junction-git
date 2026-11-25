@@ -10,7 +10,7 @@ import { FlowResult, Msg, Ui } from '../flows/ui';
 import { BranchRef } from '../git/types';
 import { fetchAll } from '../git/operations';
 import { loadSnapshot } from '../model/repoModel';
-import { buildEntries } from '../model/tree';
+import { quickCheckoutOrder } from '../model/tree';
 import { GitConnection, RepoHandle } from '../vscode/gitApi';
 import { openServersSettings, readSettings, saveServer } from '../vscode/settings';
 import { openExternalUrl } from '../vscode/externalUri';
@@ -140,27 +140,42 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
     };
 
   reg('junction.checkout', branchFlow({ key: 'Switching branch…' }, flows.checkoutFlow));
-  reg(
-    'junction.checkoutBranch',
-    repoFlow({ key: 'Switching branch…' }, async (c) => {
-      const entries = buildEntries(c.snap.branches, { groupByFolder: false, sort: 'recent', recent: c.snap.recent });
-      const items = entries.flatMap((e) => {
-        if (e.type !== 'branch' || e.branch.isHead || (e.branch.kind === 'remote' && e.branch.shortName === 'HEAD')) {
-          return [];
-        }
-        const b = e.branch;
-        const base = c.snap.base;
-        const description = localizedDescription(b, {
-          aheadOfBase: c.snap.aheadOfBase.get(b.name),
-          merged: b.kind === 'local' && c.snap.merged.has(b.name),
-          isBase: !!base && (b.name === base.local || b.name === base.remoteRef),
-        });
-        return [{ label: b.name, description, value: b }];
-      });
-      const picked = await c.ui.pick(items, { key: 'Select a branch to switch to' });
-      return picked ? flows.checkoutFlow(c, picked) : 'cancelled';
-    }),
-  );
+  reg('junction.checkoutBranch', async () => {
+    const repo = await pickRepo();
+    if (!repo) {
+      return;
+    }
+    // Pick first, outside the progress; the flow then reloads a fresh snapshot like every other command.
+    let picked: BranchRef | undefined;
+    try {
+      const snap = await loadSnapshot(repo.git, { baseBranch: readSettings(repo.root).baseBranch });
+      const items = quickCheckoutOrder(snap.branches, snap.recent, snap.state.head).map((b) => ({
+        label: b.name,
+        description: localizedDescription(b, {
+          aheadOfBase: snap.aheadOfBase.get(b.name),
+          merged: b.kind === 'local' && snap.merged.has(b.name),
+          isBase: !!snap.base && (b.name === snap.base.local || b.name === snap.base.remoteRef),
+        }),
+        value: b,
+      }));
+      picked = await ui.pick(items, { key: 'Select a branch to switch to' });
+    } catch (e) {
+      ui.error({ key: 'Unexpected error: {0}', args: [e instanceof Error ? e.message : String(e)] }, e);
+      return;
+    }
+    if (!picked) {
+      return;
+    }
+    const chosen = picked;
+    await runFlow(repo, { key: 'Switching branch…' }, (c) => {
+      const b = c.snap.branches.find((x) => x.kind === chosen.kind && x.name === chosen.name);
+      if (!b) {
+        ui.error({ key: 'Branch {0} no longer exists.', args: [chosen.name] });
+        return Promise.resolve('failed');
+      }
+      return flows.checkoutFlow(c, b);
+    });
+  });
   reg('junction.newBranch', branchFlow({ key: 'Creating branch…' }, flows.newBranchFlow));
   reg('junction.rename', branchFlow({ key: 'Renaming branch…' }, flows.renameFlow));
   reg('junction.delete', branchFlow({ key: 'Deleting branch…' }, flows.deleteLocalFlow));
