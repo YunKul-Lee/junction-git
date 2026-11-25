@@ -52,6 +52,9 @@ export function createGit(
         }
         return { major: Number(m[1]), minor: Number(m[2]) };
       });
+      cachedVersion.catch(() => {
+        cachedVersion = undefined;
+      });
       return cachedVersion;
     },
   };

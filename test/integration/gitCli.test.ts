@@ -29,6 +29,19 @@ describe('gitCli', () => {
     expect(v.major).toBeGreaterThanOrEqual(2);
   });
 
+  it('version does not cache a rejection', async () => {
+    const git = createGit('git-binary-that-does-not-exist', repo.dir);
+    await expect(git.version()).rejects.toBeDefined();
+    const first = git.version();
+    const second = git.version();
+    await first.catch(() => undefined);
+    expect(first).toBe(second);
+    await expect(first).rejects.toBeDefined();
+    // a new call after settling must create a fresh promise
+    expect(git.version()).not.toBe(first);
+    await git.version().catch(() => undefined);
+  });
+
   it('log hook receives command line', async () => {
     const lines: string[] = [];
     const git = createGit('git', repo.dir, (l) => lines.push(l));
