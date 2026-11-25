@@ -1,0 +1,15 @@
+{
+  "junction.cmd.refresh": "Refresh",
+  "junction.cmd.filter": "Filter Branches",
+  "junction.cmd.clearFilter": "Clear Branch Filter",
+  "junction.cmd.compareWithCurrent": "Compare with Current Branch",
+  "junction.cmd.closeCompare": "Close Comparison",
+  "junction.cmd.copyCommitHash": "Copy Commit Hash",
+  "junction.cmd.copyCommitMessage": "Copy Commit Message",
+  "junction.config.baseBranch": "Base branch that other branches are compared against. Empty detects develop, main or master.",
+  "junction.config.branchSort": "Sort order of branches in the tree.",
+  "junction.config.groupByFolder": "Group branches into folders by their name prefix (feature/...).",
+  "junction.config.commitLimit": "Number of commits shown under a branch before 'Load more'.",
+  "junction.config.confirmMerge": "Ask for confirmation before merging.",
+  "junction.config.bitbucketServers": "Self-hosted Bitbucket servers used to build pull request URLs."
+}

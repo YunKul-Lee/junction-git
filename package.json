@@ -34,6 +34,173 @@
           "name": "Branches"
         }
       ]
+    },
+    "commands": [
+      {
+        "command": "junction.refresh",
+        "title": "%junction.cmd.refresh%",
+        "category": "Junction",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "junction.filter",
+        "title": "%junction.cmd.filter%",
+        "category": "Junction",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "junction.clearFilter",
+        "title": "%junction.cmd.clearFilter%",
+        "category": "Junction",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "junction.compareWithCurrent",
+        "title": "%junction.cmd.compareWithCurrent%",
+        "category": "Junction"
+      },
+      {
+        "command": "junction.closeCompare",
+        "title": "%junction.cmd.closeCompare%",
+        "category": "Junction",
+        "icon": "$(close)"
+      },
+      {
+        "command": "junction.copyCommitHash",
+        "title": "%junction.cmd.copyCommitHash%",
+        "category": "Junction"
+      },
+      {
+        "command": "junction.copyCommitMessage",
+        "title": "%junction.cmd.copyCommitMessage%",
+        "category": "Junction"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "junction.filter",
+          "when": "view == junction.branches",
+          "group": "navigation@1"
+        },
+        {
+          "command": "junction.clearFilter",
+          "when": "view == junction.branches && junction.filterActive",
+          "group": "navigation@2"
+        },
+        {
+          "command": "junction.refresh",
+          "when": "view == junction.branches",
+          "group": "navigation@9"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "junction.compareWithCurrent",
+          "when": "view == junction.branches && viewItem =~ /^branch-(local|local-merged|remote)$/",
+          "group": "1_compare"
+        },
+        {
+          "command": "junction.closeCompare",
+          "when": "view == junction.branches && viewItem == compare",
+          "group": "inline"
+        },
+        {
+          "command": "junction.copyCommitHash",
+          "when": "view == junction.branches && viewItem == commit",
+          "group": "9_copy@1"
+        },
+        {
+          "command": "junction.copyCommitMessage",
+          "when": "view == junction.branches && viewItem == commit",
+          "group": "9_copy@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "junction.compareWithCurrent",
+          "when": "false"
+        },
+        {
+          "command": "junction.closeCompare",
+          "when": "false"
+        },
+        {
+          "command": "junction.copyCommitHash",
+          "when": "false"
+        },
+        {
+          "command": "junction.copyCommitMessage",
+          "when": "false"
+        },
+        {
+          "command": "junction.clearFilter",
+          "when": "junction.filterActive"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Junction",
+      "properties": {
+        "junction.baseBranch": {
+          "type": "string",
+          "default": "",
+          "description": "%junction.config.baseBranch%"
+        },
+        "junction.branchSort": {
+          "type": "string",
+          "enum": [
+            "recent",
+            "name"
+          ],
+          "default": "recent",
+          "description": "%junction.config.branchSort%"
+        },
+        "junction.groupByFolder": {
+          "type": "boolean",
+          "default": true,
+          "description": "%junction.config.groupByFolder%"
+        },
+        "junction.commitLimit": {
+          "type": "number",
+          "default": 20,
+          "minimum": 1,
+          "description": "%junction.config.commitLimit%"
+        },
+        "junction.confirmMerge": {
+          "type": "boolean",
+          "default": true,
+          "description": "%junction.config.confirmMerge%"
+        },
+        "junction.bitbucket.servers": {
+          "type": "array",
+          "default": [],
+          "description": "%junction.config.bitbucketServers%",
+          "items": {
+            "type": "object",
+            "required": [
+              "gitHost",
+              "webUrl",
+              "type"
+            ],
+            "properties": {
+              "gitHost": {
+                "type": "string"
+              },
+              "webUrl": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "cloud",
+                  "datacenter"
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   },
   "scripts": {
