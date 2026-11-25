@@ -85,6 +85,21 @@ describe('createPrFlow', () => {
     expect(env.saved).toHaveLength(0);
   });
 
+  it('rejects an invalid address instead of saving it', async () => {
+    const ui = new FakeUi(['https://']);
+    const env = new Env([]);
+    expect(await run(ui, env)).toBe('cancelled');
+    expect(ui.validationErrors).toEqual([{ key: 'Enter an http(s) URL.' }]);
+    expect(env.saved).toHaveLength(0);
+    expect(env.opened).toHaveLength(0);
+  });
+
+  it('strips trailing slashes from the confirmed address', async () => {
+    const env = new Env([], 3);
+    await run(new FakeUi(['https://git.acme.com/']), env);
+    expect(env.saved[0].webUrl).toBe('https://git.acme.com');
+  });
+
   it('asks for the server type when the address cannot be guessed', async () => {
     await repo.sh('config', 'remote.origin.url', 'https://code.example.org/team/web.git');
     const ui = new FakeUi(['https://code.example.org', 'cloud']);

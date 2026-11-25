@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
 import { registerCommands } from './commands/register';
 import { BranchTreeProvider } from './views/branchTree';
+import { toExternalUri } from './vscode/externalUri';
 import { connectGitApi } from './vscode/gitApi';
 import { updateHasBitbucketContext } from './vscode/bitbucketContext';
 
-export async function activate(ctx: vscode.ExtensionContext): Promise<{ tree: BranchTreeProvider }> {
+export async function activate(ctx: vscode.ExtensionContext): Promise<{ tree: BranchTreeProvider; toExternalUri: typeof toExternalUri }> {
   const output = vscode.window.createOutputChannel('Junction');
   const log = (line: string): void => output.appendLine(line);
   const conn = await connectGitApi(log);
@@ -38,7 +39,8 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<{ tree: Br
     }),
   );
   registerCommands(ctx, { tree, conn, output });
-  return { tree };
+  // `toExternalUri` is exposed for the extension tests (the test project cannot import from src/).
+  return { tree, toExternalUri };
 }
 
 export function deactivate(): void {}

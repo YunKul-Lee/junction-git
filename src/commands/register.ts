@@ -12,6 +12,7 @@ import { fetchAll } from '../git/operations';
 import { loadSnapshot } from '../model/repoModel';
 import { GitConnection, RepoHandle } from '../vscode/gitApi';
 import { openServersSettings, readSettings, saveServer } from '../vscode/settings';
+import { toExternalUri } from '../vscode/externalUri';
 import { VscodeUi } from '../vscode/vscodeUi';
 
 export const EMPTY_SCHEME = 'junction-empty';
@@ -209,7 +210,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
     servers: () => readSettings(root).bitbucketServers,
     saveServer,
     open: async (url) => {
-      await vscode.env.openExternal(vscode.Uri.parse(url));
+      await vscode.env.openExternal(toExternalUri(url));
     },
     openSettings: () => void openServersSettings(),
     nagCount: (host) => ctx.globalState.get<number>(NAG_PREFIX + host.toLowerCase(), 0),

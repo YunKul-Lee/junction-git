@@ -57,7 +57,11 @@ export async function createPrFlow(c: PrCtx, b: BranchRef, target?: string): Pro
   let server = findServer(url, env.servers());
   if (!server) {
     const guess = guessServer(url);
-    const webUrl = await ui.input({ key: 'Bitbucket web URL for {0}', args: [parsed.host] }, { value: guess?.webUrl ?? 'https://' });
+    const webUrl = await ui.input({ key: 'Bitbucket web URL for {0}', args: [parsed.host] }, {
+        value: guess?.webUrl ?? 'https://',
+        validate: (v) => (/^https?:\/\/[^/\s]+/.test(v.trim()) ? undefined : { key: 'Enter an http(s) URL.' }),
+      },
+    );
     if (webUrl === undefined) {
       return 'cancelled';
     }
@@ -74,7 +78,7 @@ export async function createPrFlow(c: PrCtx, b: BranchRef, target?: string): Pro
         return 'cancelled';
       }
     }
-    server = { gitHost: parsed.host, webUrl: webUrl.trim(), type };
+    server = { gitHost: parsed.host, webUrl: webUrl.trim().replace(/\/+$/, ''), type };
     await env.saveServer(server);
   }
 

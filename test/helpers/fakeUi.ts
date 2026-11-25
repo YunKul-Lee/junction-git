@@ -12,6 +12,7 @@ export interface UiCall {
 /** Scripted Ui: interactive methods consume `answers` in order; an empty queue answers undefined (cancel). */
 export class FakeUi implements Ui {
   readonly calls: UiCall[] = [];
+  readonly validationErrors: Msg[] = [];
   /** Callback of the latest `info` with actions; tests call it to simulate a click. */
   infoPick?: (index: number) => void;
   constructor(public answers: unknown[] = []) {}
@@ -34,7 +35,15 @@ export class FakeUi implements Ui {
     opts?: { value?: string; validate?: (v: string) => Msg | undefined },
   ): Promise<string | undefined> {
     this.calls.push({ method: 'input', msg: prompt, opts });
-    return await this.next<string>();
+    const answer = await this.next<string>();
+    if (answer !== undefined && opts?.validate) {
+      const problem = opts.validate(answer);
+      if (problem) {
+        this.validationErrors.push(problem);
+        return undefined; // a rejected answer behaves like a dismissed box
+      }
+    }
+    return answer;
   }
   async pickMany<T>(items: { label: string; picked: boolean; value: T }[], title: Msg): Promise<T[] | undefined> {
     this.calls.push({ method: 'pickMany', msg: title, items });
