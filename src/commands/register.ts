@@ -106,7 +106,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
 
   /** Re-resolves the node's branch in the fresh snapshot so flows never act on stale state. */
   const branchFlow =
-    (title: Msg, flow: (c: Parameters<Parameters<typeof runFlow>[2]>[0], b: BranchRef) => Promise<FlowResult>) =>
+    (title: Msg, flow: (c: Parameters<Parameters<typeof runFlow>[2]>[0], b: BranchRef) => Promise<FlowResult | MergeResult>) =>
     (node: BranchNode): Promise<void> =>
       runFlow(node.repo, title, (c) => {
         const b = c.snap.branches.find((x) => x.kind === node.branch.kind && x.name === node.branch.name);
@@ -128,7 +128,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
     );
   };
   const repoFlow =
-    (title: Msg, flow: (c: Parameters<Parameters<typeof runFlow>[2]>[0]) => Promise<FlowResult>) =>
+    (title: Msg, flow: (c: Parameters<Parameters<typeof runFlow>[2]>[0]) => Promise<FlowResult | MergeResult>) =>
     async (): Promise<void> => {
       const repo = await pickRepo();
       if (repo) {

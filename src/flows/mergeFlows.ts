@@ -110,15 +110,23 @@ export async function continueFlow(c: FlowCtx): Promise<MergeResult> {
 
 export async function abortFlow(c: FlowCtx): Promise<FlowResult> {
   const { git, ui, snap } = c;
+  const rebasing = snap.state.rebase !== undefined;
+  if (!rebasing && !snap.state.merging) {
+    ui.error({ key: 'No rebase or merge is in progress.' });
+    return 'failed';
+  }
+  const choice = await ui.confirm(
+    rebasing
+      ? { key: 'Abort the rebase? Commits already replayed and your conflict resolutions will be lost.' }
+      : { key: 'Abort the merge? Conflict resolutions you made will be lost.' },
+    [{ key: 'Abort' }],
+    { modal: true },
+  );
+  if (choice === undefined) {
+    return 'cancelled';
+  }
   try {
-    if (snap.state.rebase) {
-      await ops.rebaseAbort(git);
-    } else if (snap.state.merging) {
-      await ops.mergeAbort(git);
-    } else {
-      ui.error({ key: 'No rebase or merge is in progress.' });
-      return 'failed';
-    }
+    await (rebasing ? ops.rebaseAbort(git) : ops.mergeAbort(git));
     return 'done';
   } catch (e) {
     ui.error({ key: 'Could not abort.' }, e);

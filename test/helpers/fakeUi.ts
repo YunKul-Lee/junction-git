@@ -5,7 +5,7 @@ export interface UiCall {
   msg: Msg;
   actions?: Msg[];
   items?: { label: string; picked?: boolean; value: unknown }[];
-  opts?: { value?: string; validate?: (v: string) => Msg | undefined; modal?: boolean };
+  opts?: { value?: string; validate?: (v: string) => Msg | undefined; modal?: boolean; detail?: Msg };
   err?: unknown;
 }
 

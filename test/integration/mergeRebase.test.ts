@@ -49,9 +49,29 @@ describe('merge and rebase flows', () => {
     const { c } = await ctx();
     expect(await mergeIntoCurrentFlow(c, ref(c.snap, 'topic'), { confirm: false })).toBe('conflicts');
     expect((await repoState(repo.git)).merging).toBe(true);
-    const next = await ctx();
+    const cancelled = await ctx([undefined]);
+    expect(await abortFlow(cancelled.c)).toBe('cancelled');
+    expect((await repoState(repo.git)).merging).toBe(true);
+    expect(cancelled.ui.of('confirm')[0].msg.key).toBe('Abort the merge? Conflict resolutions you made will be lost.');
+    expect(cancelled.ui.of('confirm')[0].opts?.modal).toBe(true);
+    const next = await ctx([0]);
     expect(await abortFlow(next.c)).toBe('done');
     expect((await repoState(repo.git)).merging).toBe(false);
+    expect(await rev('HEAD')).toBe(before);
+  });
+
+  it('rebase abort asks first, then restores the pre-rebase HEAD', async () => {
+    await conflicting();
+    await repo.sh('switch', 'topic');
+    const before = await rev('HEAD');
+    const { c } = await ctx();
+    expect(await rebaseCurrentOntoFlow(c, ref(c.snap, 'develop'), { confirm: false })).toBe('conflicts');
+    const next = await ctx([0]);
+    expect(await abortFlow(next.c)).toBe('done');
+    expect(next.ui.of('confirm')[0].msg.key).toBe(
+      'Abort the rebase? Commits already replayed and your conflict resolutions will be lost.',
+    );
+    expect((await repoState(repo.git)).rebase).toBeUndefined();
     expect(await rev('HEAD')).toBe(before);
   });
 
