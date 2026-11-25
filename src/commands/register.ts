@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { BranchNode, CommitNode, DiffArgs, MoreNode, StatusNode } from '../views/nodes';
+import { BranchNode, CommitNode, DiffArgs, localizedDescription, MoreNode, StatusNode } from '../views/nodes';
 import { BranchTreeProvider } from '../views/branchTree';
 import * as flows from '../flows/branchFlows';
 import * as mergeFlows from '../flows/mergeFlows';
@@ -10,6 +10,7 @@ import { FlowResult, Msg, Ui } from '../flows/ui';
 import { BranchRef } from '../git/types';
 import { fetchAll } from '../git/operations';
 import { loadSnapshot } from '../model/repoModel';
+import { buildEntries } from '../model/tree';
 import { GitConnection, RepoHandle } from '../vscode/gitApi';
 import { openServersSettings, readSettings, saveServer } from '../vscode/settings';
 import { openExternalUrl } from '../vscode/externalUri';
@@ -139,6 +140,27 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
     };
 
   reg('junction.checkout', branchFlow({ key: 'Switching branch…' }, flows.checkoutFlow));
+  reg(
+    'junction.checkoutBranch',
+    repoFlow({ key: 'Switching branch…' }, async (c) => {
+      const entries = buildEntries(c.snap.branches, { groupByFolder: false, sort: 'recent', recent: c.snap.recent });
+      const items = entries.flatMap((e) => {
+        if (e.type !== 'branch' || e.branch.isHead || (e.branch.kind === 'remote' && e.branch.shortName === 'HEAD')) {
+          return [];
+        }
+        const b = e.branch;
+        const base = c.snap.base;
+        const description = localizedDescription(b, {
+          aheadOfBase: c.snap.aheadOfBase.get(b.name),
+          merged: b.kind === 'local' && c.snap.merged.has(b.name),
+          isBase: !!base && (b.name === base.local || b.name === base.remoteRef),
+        });
+        return [{ label: b.name, description, value: b }];
+      });
+      const picked = await c.ui.pick(items, { key: 'Select a branch to switch to' });
+      return picked ? flows.checkoutFlow(c, picked) : 'cancelled';
+    }),
+  );
   reg('junction.newBranch', branchFlow({ key: 'Creating branch…' }, flows.newBranchFlow));
   reg('junction.rename', branchFlow({ key: 'Renaming branch…' }, flows.renameFlow));
   reg('junction.delete', branchFlow({ key: 'Deleting branch…' }, flows.deleteLocalFlow));

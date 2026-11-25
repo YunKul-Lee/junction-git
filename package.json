@@ -22,7 +22,7 @@
       "activitybar": [
         {
           "id": "junction",
-          "title": "Junction",
+          "title": "%junction.container.title%",
           "icon": "media/junction.svg"
         }
       ]
@@ -31,7 +31,7 @@
       "junction": [
         {
           "id": "junction.branches",
-          "name": "Branches"
+          "name": "%junction.view.branches%"
         }
       ]
     },
@@ -80,6 +80,11 @@
         "title": "%junction.cmd.checkout%",
         "category": "Junction",
         "icon": "$(arrow-right)"
+      },
+      {
+        "command": "junction.checkoutBranch",
+        "title": "%junction.cmd.checkoutBranch%",
+        "category": "Junction"
       },
       {
         "command": "junction.newBranch",
@@ -391,7 +396,7 @@
       ]
     },
     "configuration": {
-      "title": "Junction",
+      "title": "%junction.config.title%",
       "properties": {
         "junction.baseBranch": {
           "type": "string",

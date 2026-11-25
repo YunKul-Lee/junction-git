@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { BranchRef, ChangeStatus, Commit, FileChange } from '../git/types';
-import { describeBranch, TreeEntry } from '../model/tree';
+import { BranchBadges, describeBranch, TreeEntry } from '../model/tree';
 import { RepoSnapshot } from '../model/repoModel';
 import { RepoHandle } from '../vscode/gitApi';
 
@@ -102,13 +102,20 @@ export class BranchNode extends vscode.TreeItem {
     this.iconPath = new vscode.ThemeIcon(
       branch.isHead ? 'circle-filled' : this.contextValue === 'branch-local-merged' ? 'check' : 'git-branch',
     );
-    this.description = describeBranch(branch, {
+    this.description = localizedDescription(branch, {
       aheadOfBase: snap.aheadOfBase.get(branch.name),
       merged,
       isBase,
-    }).replace('(remote deleted)', vscode.l10n.t('(remote deleted)'));
+    });
     this.tooltip = tooltipFor(branch);
   }
+}
+
+/** `describeBranch` with its English tokens translated. */
+export function localizedDescription(b: BranchRef, badges: BranchBadges): string {
+  return describeBranch(b, badges)
+    .replace('✓ merged', vscode.l10n.t('✓ merged'))
+    .replace('(remote deleted)', vscode.l10n.t('(remote deleted)'));
 }
 
 function tooltipFor(b: BranchRef): vscode.MarkdownString {

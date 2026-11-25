@@ -7,6 +7,7 @@
   "junction.cmd.copyCommitHash": "Copy Commit Hash",
   "junction.cmd.copyCommitMessage": "Copy Commit Message",
   "junction.cmd.checkout": "Switch to Branch",
+  "junction.cmd.checkoutBranch": "Checkout Branch…",
   "junction.cmd.newBranch": "New Branch from Here",
   "junction.cmd.rename": "Rename Branch",
   "junction.cmd.delete": "Delete Branch",
@@ -30,5 +31,8 @@
   "junction.config.groupByFolder": "Group branches into folders by their name prefix (feature/...).",
   "junction.config.commitLimit": "Number of commits shown under a branch before 'Load more'.",
   "junction.config.confirmMerge": "Ask for confirmation before merging.",
-  "junction.config.bitbucketServers": "Self-hosted Bitbucket servers used to build pull request URLs."
+  "junction.config.bitbucketServers": "Self-hosted Bitbucket servers used to build pull request URLs.",
+  "junction.container.title": "Junction",
+  "junction.view.branches": "Branches",
+  "junction.config.title": "Junction"
 }
