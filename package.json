@@ -145,7 +145,7 @@
         "category": "Junction"
       },
       {
-        "command": "junction.bitbucket.changeWebUrl",
+        "command": "junction.pullRequest.changeWebUrl",
         "title": "%junction.cmd.changeWebUrl%",
         "category": "Junction"
       },
@@ -278,12 +278,12 @@
         },
         {
           "command": "junction.createPr",
-          "when": "view == junction.branches && junction.hasBitbucket && viewItem =~ /^branch-local(-head|-merged)?$/",
+          "when": "view == junction.branches && junction.hasPullRequest && viewItem =~ /^branch-local(-head|-merged)?$/",
           "group": "2_sync@3"
         },
         {
           "command": "junction.createPrPickTarget",
-          "when": "view == junction.branches && junction.hasBitbucket && viewItem =~ /^branch-local(-head|-merged)?$/",
+          "when": "view == junction.branches && junction.hasPullRequest && viewItem =~ /^branch-local(-head|-merged)?$/",
           "group": "2_sync@4"
         },
         {
@@ -428,15 +428,14 @@
           "default": true,
           "description": "%junction.config.confirmMerge%"
         },
-        "junction.bitbucket.servers": {
+        "junction.pullRequest.servers": {
           "type": "array",
           "default": [],
-          "description": "%junction.config.bitbucketServers%",
+          "description": "%junction.config.pullRequestServers%",
           "items": {
             "type": "object",
             "required": [
               "gitHost",
-              "webUrl",
               "type"
             ],
             "properties": {
@@ -449,8 +448,11 @@
               "type": {
                 "type": "string",
                 "enum": [
-                  "cloud",
-                  "datacenter"
+                  "bitbucket-cloud",
+                  "bitbucket-datacenter",
+                  "github",
+                  "gitlab",
+                  "none"
                 ]
               }
             }

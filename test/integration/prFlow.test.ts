@@ -76,17 +76,37 @@ describe('createPrFlow', () => {
     expect(env.opened).toEqual([DC_PR.replace('feature%2Fx', 'feature%2Fy')]);
   });
 
-  it('confirms a guessed address and saves it when none is configured', async () => {
-    const ui = new FakeUi(['https://git.acme.com']);
+  const TYPE_TITLE = { key: 'What kind of server is {0}?', args: ['git.acme.com'] };
+
+  it('asks for the server type, then confirms the guessed Data Center address and saves it', async () => {
+    const ui = new FakeUi(['bitbucket-datacenter', 'https://git.acme.com']);
     const env = new Env([], 3);
     expect(await run(ui, env)).toBe('done');
+    expect(ui.of('pick')[0].msg).toEqual(TYPE_TITLE);
+    expect(ui.of('pick')[0].items?.map((i) => i.value)).toEqual([
+      'bitbucket-datacenter',
+      'bitbucket-cloud',
+      'github',
+      'gitlab',
+      'none',
+    ]);
+    expect(ui.of('input')[0].msg).toEqual({ key: 'Web address for {0}', args: ['git.acme.com'] });
     expect(ui.of('input')[0].opts?.value).toBe('https://git.acme.com');
     expect(env.saved).toEqual([{ gitHost: 'git.acme.com', webUrl: 'https://git.acme.com', type: 'bitbucket-datacenter' }]);
     expect(env.opened).toEqual([DC_PR]);
   });
 
-  it('cancelling the address input does nothing', async () => {
+  it('cancelling the type pick does nothing', async () => {
     const ui = new FakeUi([undefined]);
+    const env = new Env([]);
+    expect(await run(ui, env)).toBe('cancelled');
+    expect(ui.of('input')).toHaveLength(0);
+    expect(env.saved).toHaveLength(0);
+    expect(env.opened).toHaveLength(0);
+  });
+
+  it('cancelling the address input does nothing', async () => {
+    const ui = new FakeUi(['bitbucket-datacenter', undefined]);
     const env = new Env([]);
     expect(await run(ui, env)).toBe('cancelled');
     expect(env.opened).toHaveLength(0);
@@ -94,7 +114,7 @@ describe('createPrFlow', () => {
   });
 
   it('rejects an invalid address instead of saving it', async () => {
-    const ui = new FakeUi(['https://']);
+    const ui = new FakeUi(['bitbucket-datacenter', 'https://']);
     const env = new Env([]);
     expect(await run(ui, env)).toBe('cancelled');
     expect(ui.validationErrors).toEqual([{ key: 'Enter an http(s) URL.' }]);
@@ -104,17 +124,55 @@ describe('createPrFlow', () => {
 
   it('strips trailing slashes from the confirmed address', async () => {
     const env = new Env([], 3);
-    await run(new FakeUi(['https://git.acme.com/']), env);
+    await run(new FakeUi(['bitbucket-datacenter', 'https://git.acme.com/']), env);
     expect(env.saved[0].webUrl).toBe('https://git.acme.com');
   });
 
-  it('asks for the server type when the address cannot be guessed', async () => {
-    await repo.sh('config', 'remote.origin.url', 'https://code.example.org/team/web.git');
-    const ui = new FakeUi(['https://code.example.org', 'bitbucket-cloud']);
+  it('saves a GitLab server picked for an unknown host and opens a merge request page', async () => {
+    await repo.sh('config', 'remote.origin.url', 'git@git.acme.com:team/web.git');
+    const ui = new FakeUi(['gitlab', 'https://git.acme.com']);
     const env = new Env([], 3);
     expect(await run(ui, env)).toBe('done');
-    expect(ui.of('input')[0].opts?.value).toBe('https://');
-    expect(env.saved).toEqual([{ gitHost: 'code.example.org', webUrl: 'https://code.example.org', type: 'bitbucket-cloud' }]);
+    expect(ui.of('input')[0].opts?.value).toBe('https://git.acme.com');
+    expect(env.saved).toEqual([{ gitHost: 'git.acme.com', webUrl: 'https://git.acme.com', type: 'gitlab' }]);
+    expect(env.opened).toEqual([
+      'https://git.acme.com/team/web/-/merge_requests/new?merge_request%5Bsource_branch%5D=feature%2Fx&merge_request%5Btarget_branch%5D=develop',
+    ]);
+  });
+
+  it('saves a none server when the user says the host has no pull requests', async () => {
+    const ui = new FakeUi(['none']);
+    const env = new Env([]);
+    expect(await run(ui, env)).toBe('cancelled');
+    expect(ui.of('input')).toHaveLength(0);
+    expect(env.saved).toEqual([{ gitHost: 'git.acme.com', type: 'none' }]);
+    expect(ui.of('info')[0].msg).toEqual({
+      key: 'Pull requests are turned off for {0}. You can change this in settings.',
+      args: ['git.acme.com'],
+    });
+    expect(env.opened).toHaveLength(0);
+  });
+
+  it('opens nothing for a server configured as none', async () => {
+    const ui = new FakeUi();
+    const env = new Env([{ gitHost: 'git.acme.com', type: 'none' }]);
+    expect(await run(ui, env)).toBe('cancelled');
+    expect(ui.of('pick')).toHaveLength(0);
+    expect(ui.of('input')).toHaveLength(0);
+    expect(ui.of('info')[0].msg).toEqual({ key: 'Pull requests are turned off for {0}.', args: ['git.acme.com'] });
+    expect(env.opened).toHaveLength(0);
+  });
+
+  it('opens github.com right away without prompts, saving or the wrong-address hint', async () => {
+    await repo.sh('config', 'remote.origin.url', 'git@github.com:acme/web.git');
+    const ui = new FakeUi();
+    const env = new Env([], 0);
+    expect(await run(ui, env)).toBe('done');
+    expect(ui.of('pick')).toHaveLength(0);
+    expect(ui.of('input')).toHaveLength(0);
+    expect(ui.of('info')).toHaveLength(0);
+    expect(env.saved).toHaveLength(0);
+    expect(env.opened).toEqual(['https://github.com/acme/web/compare/develop...feature/x?expand=1']);
   });
 
   describe('with unpushed commits', () => {

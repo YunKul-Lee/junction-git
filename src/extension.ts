@@ -3,7 +3,7 @@ import { registerCommands } from './commands/register';
 import { BranchTreeProvider } from './views/branchTree';
 import { openExternalUrl } from './vscode/externalUri';
 import { connectGitApi } from './vscode/gitApi';
-import { updateHasBitbucketContext } from './vscode/bitbucketContext';
+import { updateHasPullRequestContext } from './vscode/prContext';
 
 export async function activate(ctx: vscode.ExtensionContext): Promise<{ tree: BranchTreeProvider; openExternalUrl: typeof openExternalUrl }> {
   const output = vscode.window.createOutputChannel('Junction');
@@ -23,15 +23,15 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<{ tree: Br
     tree,
     treeView,
     tree.onDidChangeFilter(onFilter),
-    tree.onDidLoadSnapshots(() => void updateHasBitbucketContext(tree)),
+    tree.onDidLoadSnapshots(() => void updateHasPullRequestContext(tree)),
     vscode.window.onDidChangeWindowState((s) => {
       if (s.focused) {
         tree.refresh();
       }
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('junction.bitbucket.servers')) {
-        void updateHasBitbucketContext(tree);
+      if (e.affectsConfiguration('junction.pullRequest.servers')) {
+        void updateHasPullRequestContext(tree);
       }
       if (e.affectsConfiguration('junction')) {
         // Settings such as sorting or grouping change the rendering without changing any snapshot.

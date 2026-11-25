@@ -50,7 +50,7 @@ export class FakeUi implements Ui {
     const a = await this.next<'all' | T[]>();
     return a === 'all' ? items.map((i) => i.value) : (a as T[] | undefined);
   }
-  async pick<T>(items: { label: string; description?: string; value: T }[], title: Msg): Promise<T | undefined> {
+  async pick<T>(items: { label: string; labelMsg?: Msg; description?: string; value: T }[], title: Msg): Promise<T | undefined> {
     this.calls.push({ method: 'pick', msg: title, items });
     return await this.next<T>();
   }

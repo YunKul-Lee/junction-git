@@ -250,7 +250,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
 
   const NAG_PREFIX = 'junction.prNag.';
   const prEnv = (root: vscode.Uri): PrEnv => ({
-    servers: () => readSettings(root).bitbucketServers,
+    servers: () => readSettings(root).pullRequestServers,
     saveServer,
     open: async (url) => {
       await openExternalUrl(url);
@@ -283,7 +283,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
       })(node);
   reg('junction.createPr', prFlow(false));
   reg('junction.createPrPickTarget', prFlow(true));
-  reg('junction.bitbucket.changeWebUrl', () => openServersSettings());
+  reg('junction.pullRequest.changeWebUrl', () => openServersSettings());
 
   reg('junction.copyBranchName', (node: BranchNode) => vscode.env.clipboard.writeText(node.branch.name));
 

@@ -19,7 +19,7 @@
   "junction.cmd.cleanupMerged": "병합된 브랜치 정리",
   "junction.cmd.createPr": "PR 만들기",
   "junction.cmd.createPrPickTarget": "대상 브랜치를 골라 PR 만들기…",
-  "junction.cmd.changeWebUrl": "Bitbucket 웹 주소 변경",
+  "junction.cmd.changeWebUrl": "PR 웹 주소 변경",
   "junction.cmd.copyBranchName": "브랜치 이름 복사",
   "junction.cmd.mergeIntoCurrent": "현재 브랜치에 병합",
   "junction.cmd.rebaseCurrentOnto": "현재 브랜치를 이 브랜치 위로 리베이스",
@@ -31,7 +31,7 @@
   "junction.config.groupByFolder": "브랜치 이름의 접두사(feature/...)별로 폴더로 묶습니다.",
   "junction.config.commitLimit": "'더 보기' 전에 브랜치 아래에 표시할 커밋 수입니다.",
   "junction.config.confirmMerge": "병합하기 전에 확인을 요청합니다.",
-  "junction.config.bitbucketServers": "PR 주소를 만들 때 사용하는 자체 호스팅 Bitbucket 서버 목록입니다.",
+  "junction.config.pullRequestServers": "PR 주소를 만들 때 사용하는 git 서버 목록입니다: Bitbucket Cloud/Data Center, GitHub, GitLab, 또는 PR 기능이 없는 서버는 none. github.com, gitlab.com, bitbucket.org는 항목 없이도 동작합니다.",
   "junction.container.title": "Junction",
   "junction.view.branches": "브랜치",
   "junction.config.title": "Junction"

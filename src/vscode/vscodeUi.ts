@@ -42,8 +42,9 @@ export class VscodeUi implements Ui {
     return picked?.map((i) => i.value);
   }
 
-  async pick<T>(items: { label: string; description?: string; value: T }[], title: Msg): Promise<T | undefined> {
-    return (await vscode.window.showQuickPick(items, { title: text(title) }))?.value;
+  async pick<T>(items: { label: string; labelMsg?: Msg; description?: string; value: T }[], title: Msg): Promise<T | undefined> {
+    const shown = items.map((i) => ({ label: i.labelMsg ? text(i.labelMsg) : i.label, description: i.description, value: i.value }));
+    return (await vscode.window.showQuickPick(shown, { title: text(title) }))?.value;
   }
 
   info(msg: Msg, actions?: Msg[], onPick?: (index: number) => void): void {

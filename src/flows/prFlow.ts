@@ -1,7 +1,7 @@
 import { remoteUrl } from '../git/queries';
 import { BranchRef, Git } from '../git/types';
 import { RepoSnapshot } from '../model/repoModel';
-import { PrServer, buildPrUrl, findServer, guessDataCenter, guessPublic, parseRemote } from '../pr/providers';
+import { PrServer, ServerType, buildPrUrl, findServer, guessDataCenter, guessPublic, parseRemote } from '../pr/providers';
 import { pushFlow } from './branchFlows';
 import { FlowResult, Ui } from './ui';
 
@@ -11,7 +11,7 @@ export interface PrEnv {
   /** Adds to or replaces (by gitHost) the entry in the user (Global) settings. */
   saveServer(s: PrServer): Promise<void>;
   open(url: string): Promise<void>;
-  /** Opens the settings UI at `junction.bitbucket.servers`. */
+  /** Opens the settings UI at `junction.pullRequest.servers`. */
   openSettings(): void;
   nagCount(gitHost: string): number;
   bumpNag(gitHost: string): void;
@@ -54,32 +54,47 @@ export async function createPrFlow(c: PrCtx, b: BranchRef, target?: string): Pro
     return 'failed';
   }
 
+  const host = parsed.host;
   let server = findServer(url, env.servers());
+  // Only an address the user saved can be wrong; public hosts are always right.
+  let fromSettings = !!server;
+  if (server?.type === 'none') {
+    ui.info({ key: 'Pull requests are turned off for {0}.', args: [host] }, [{ key: 'Open Settings' }], () => env.openSettings());
+    return 'cancelled';
+  }
   if (!server) {
-    const guess = guessPublic(url) ?? guessDataCenter(url);
-    const webUrl = await ui.input({ key: 'Bitbucket web URL for {0}', args: [parsed.host] }, {
-        value: guess?.webUrl ?? 'https://',
-        validate: (v) => (/^https?:\/\/[^/\s]+/.test(v.trim()) ? undefined : { key: 'Enter an http(s) URL.' }),
-      },
+    server = guessPublic(url);
+  }
+  if (!server) {
+    const type = await ui.pick<ServerType>(
+      [
+        { label: 'Bitbucket Data Center', value: 'bitbucket-datacenter' },
+        { label: 'Bitbucket Cloud', value: 'bitbucket-cloud' },
+        { label: 'GitHub', value: 'github' },
+        { label: 'GitLab', value: 'gitlab' },
+        { label: 'No pull requests on this server', labelMsg: { key: 'No pull requests on this server' }, value: 'none' },
+      ],
+      { key: 'What kind of server is {0}?', args: [host] },
     );
+    if (!type) {
+      return 'cancelled';
+    }
+    if (type === 'none') {
+      await env.saveServer({ gitHost: host, type: 'none' });
+      ui.info({ key: 'Pull requests are turned off for {0}. You can change this in settings.', args: [host] });
+      return 'cancelled';
+    }
+    const guessed = type === 'bitbucket-datacenter' ? guessDataCenter(url)?.webUrl : undefined;
+    const webUrl = await ui.input({ key: 'Web address for {0}', args: [host] }, {
+      value: guessed ?? `https://${host}`,
+      validate: (v) => (/^https?:\/\/[^/\s]+/.test(v.trim()) ? undefined : { key: 'Enter an http(s) URL.' }),
+    });
     if (webUrl === undefined) {
       return 'cancelled';
     }
-    let type = guess?.type;
-    if (!type) {
-      type = await ui.pick<PrServer['type']>(
-        [
-          { label: 'Bitbucket Cloud', value: 'bitbucket-cloud' },
-          { label: 'Bitbucket Data Center', value: 'bitbucket-datacenter' },
-        ],
-        { key: 'Bitbucket server type' },
-      );
-      if (!type) {
-        return 'cancelled';
-      }
-    }
-    server = { gitHost: parsed.host, webUrl: webUrl.trim().replace(/\/+$/, ''), type };
+    server = { gitHost: host, webUrl: webUrl.trim().replace(/\/+$/, ''), type };
     await env.saveServer(server);
+    fromSettings = true;
   }
 
   const needsPush = !b.upstream || b.upstreamGone || b.ahead > 0;
@@ -103,7 +118,7 @@ export async function createPrFlow(c: PrCtx, b: BranchRef, target?: string): Pro
     return 'failed';
   }
   await env.open(prUrl);
-  if (env.nagCount(server.gitHost) < 3) {
+  if (fromSettings && env.nagCount(server.gitHost) < 3) {
     env.bumpNag(server.gitHost);
     ui.info({ key: 'Wrong address?' }, [{ key: 'Open Settings' }], () => env.openSettings());
   }

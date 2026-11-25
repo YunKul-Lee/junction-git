@@ -19,7 +19,7 @@
   "junction.cmd.cleanupMerged": "Clean Up Merged Branches",
   "junction.cmd.createPr": "Create Pull Request",
   "junction.cmd.createPrPickTarget": "Create Pull Request to…",
-  "junction.cmd.changeWebUrl": "Change Bitbucket Web Address",
+  "junction.cmd.changeWebUrl": "Change Pull Request Web Address",
   "junction.cmd.copyBranchName": "Copy Branch Name",
   "junction.cmd.mergeIntoCurrent": "Merge into Current Branch",
   "junction.cmd.rebaseCurrentOnto": "Rebase Current Branch onto This",
@@ -31,7 +31,7 @@
   "junction.config.groupByFolder": "Group branches into folders by their name prefix (feature/...).",
   "junction.config.commitLimit": "Number of commits shown under a branch before 'Load more'.",
   "junction.config.confirmMerge": "Ask for confirmation before merging.",
-  "junction.config.bitbucketServers": "Self-hosted Bitbucket servers used to build pull request URLs.",
+  "junction.config.pullRequestServers": "Git servers used to build pull request URLs: Bitbucket Cloud/Data Center, GitHub, GitLab, or none for servers without pull requests. github.com, gitlab.com and bitbucket.org work without an entry.",
   "junction.container.title": "Junction",
   "junction.view.branches": "Branches",
   "junction.config.title": "Junction"
