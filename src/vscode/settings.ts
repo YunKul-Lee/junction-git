@@ -16,7 +16,7 @@ export function readSettings(scope?: vscode.Uri): JunctionSettings {
     baseBranch: cfg.get<string>('baseBranch', ''),
     branchSort: cfg.get<'recent' | 'name'>('branchSort', 'recent'),
     groupByFolder: cfg.get<boolean>('groupByFolder', true),
-    commitLimit: Math.max(1, cfg.get<number>('commitLimit', 20)),
+    commitLimit: Math.max(1, cfg.get<number>('commitLimit', 50)),
     confirmMerge: cfg.get<boolean>('confirmMerge', true),
     bitbucketServers: cfg.get<BitbucketServer[]>('bitbucket.servers', []),
   };

@@ -40,6 +40,7 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
   private timer: NodeJS.Timeout | undefined;
   private running: { abort: AbortController; roots: Set<string> | 'all' } | undefined;
   private filter: string | undefined;
+  private filterRaw: string | undefined;
   private compare: { root: string; a: string; b: string } | undefined;
   private readonly sub: vscode.Disposable;
 
@@ -47,7 +48,10 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
     private readonly conn: GitConnection,
     private readonly log: (line: string) => void,
   ) {
-    this.sub = conn.onDidChangeRepos(() => this.refresh());
+    this.sub = conn.onDidChangeRepos(() => {
+      this.syncSubscriptions(conn.repos());
+      this.refresh();
+    });
   }
 
   dispose(): void {
@@ -82,13 +86,14 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
   }
 
   setFilter(text: string | undefined): void {
-    this.filter = text ? text.toLowerCase() : undefined;
+    this.filterRaw = text || undefined;
+    this.filter = this.filterRaw?.toLowerCase();
     this.filterEmitter.fire(text || undefined);
     this.changeEmitter.fire(undefined);
   }
 
   getFilter(): string | undefined {
-    return this.filter;
+    return this.filterRaw;
   }
 
   showCompare(root: vscode.Uri, a: string, b: string): void {
@@ -167,14 +172,27 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
     const k = repo.root.fsPath;
     let p = this.results.get(k);
     if (!p) {
-      p = this.load(repo);
-      this.results.set(k, p);
-      void p.then((r) => this.store(repo, r));
+      const lazy = this.load(repo);
+      p = lazy;
+      this.results.set(k, lazy);
+      // Only store if no newer refresh replaced this entry in the meantime.
+      void lazy.then((r) => {
+        if (this.results.get(k) === lazy) {
+          this.store(repo, r);
+        }
+      });
     }
     return p;
   }
 
   private syncSubscriptions(repos: RepoHandle[]): void {
+    const live = new Set(repos.map((r) => r.root.fsPath));
+    for (const [k, d] of [...this.subscribed]) {
+      if (!live.has(k)) {
+        d.dispose();
+        this.subscribed.delete(k);
+      }
+    }
     for (const r of repos) {
       if (!this.subscribed.has(r.root.fsPath)) {
         this.subscribed.set(

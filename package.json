@@ -163,7 +163,7 @@
         },
         "junction.commitLimit": {
           "type": "number",
-          "default": 20,
+          "default": 50,
           "minimum": 1,
           "description": "%junction.config.commitLimit%"
         },

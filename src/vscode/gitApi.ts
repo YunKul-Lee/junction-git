@@ -35,7 +35,7 @@ export interface GitConnection extends vscode.Disposable {
 export async function connectGitApi(log: (l: string) => void): Promise<GitConnection> {
   const ext = vscode.extensions.getExtension<GitExtension>('vscode.git');
   if (!ext) {
-    throw new Error('The built-in Git extension (vscode.git) is not available.');
+    throw new Error(vscode.l10n.t('The built-in Git extension (vscode.git) is not available.'));
   }
   const exports = ext.isActive ? ext.exports : await ext.activate();
   const api = exports.getAPI(1);

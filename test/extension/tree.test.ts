@@ -10,6 +10,7 @@ interface BranchTreeProvider {
   showCompare(root: vscode.Uri, a: string, b: string): void;
   clearCompare(): void;
   snapshot(root: vscode.Uri): unknown;
+  getFilter(): string | undefined;
 }
 
 type AnyNode = vscode.TreeItem & { [k: string]: unknown };
@@ -102,12 +103,17 @@ suite('branch tree', function () {
     tree.setFilter('sea');
     const children = await kids(await local());
     assert.deepStrictEqual(children.map(label), ['feature']);
+    // Filtered folders are force-expanded under a distinct id (VS Code ignores new state for a known id).
+    assert.strictEqual(children[0].collapsibleState, vscode.TreeItemCollapsibleState.Expanded);
+    assert.ok(String(children[0].id).endsWith(':filtered'));
+    assert.strictEqual(tree.getFilter(), 'sea');
     assert.deepStrictEqual((await kids(children[0])).map(label), ['search']);
   });
 
   test('new branch appears after checkout -b', async () => {
     const env = { ...process.env, GIT_CONFIG_GLOBAL: path.join(workspace, '..', 'gitconfig'), GIT_CONFIG_NOSYSTEM: '1' };
     execFileSync('git', ['checkout', '-b', 'x'], { cwd: workspace, env });
+    // UX target is 1s, but vscode.git's own file-watch debounce is outside our control, so allow 1.5s.
     await until(async () => (await kids(await local())).some((n) => label(n) === 'x'), 1500);
   });
 

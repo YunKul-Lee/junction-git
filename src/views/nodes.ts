@@ -67,7 +67,9 @@ export class FolderNode extends vscode.TreeItem {
     expanded: boolean,
   ) {
     super(entry.name, expanded ? Expanded : Collapsed);
-    this.id = `folder:${section.id}:${entry.path}`;
+    // VS Code keeps saved expand state per id and ignores a new collapsibleState,
+    // so filtered (force-expanded) folders get their own ids.
+    this.id = `folder:${section.id}:${entry.path}${expanded ? ':filtered' : ''}`;
     this.contextValue = 'folder';
     this.iconPath = vscode.ThemeIcon.Folder;
   }
