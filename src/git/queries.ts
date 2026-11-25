@@ -30,7 +30,7 @@ export async function aheadOf(
     if (v.major > 2 || (v.major === 2 && v.minor >= 41)) {
       const out = await git.run([
         'for-each-ref',
-        `--format=%(refname:short)%00%(ahead-behind:${baseRef})`,
+        `--format=%(refname:lstrip=2)%00%(ahead-behind:${baseRef})`,
         'refs/heads',
       ]);
       const all = parseAheadBehind(out);
@@ -58,7 +58,7 @@ export async function aheadOf(
 }
 
 export async function mergedInto(git: Git, baseRef: string): Promise<Set<string>> {
-  const out = await git.run(['for-each-ref', '--merged', baseRef, '--format=%(refname:short)', 'refs/heads']);
+  const out = await git.run(['for-each-ref', '--merged', baseRef, '--format=%(refname:lstrip=2)', 'refs/heads']);
   return new Set(out.split('\n').filter(Boolean));
 }
 
@@ -94,9 +94,13 @@ export async function logRange(
 }
 
 export async function commitFiles(git: Git, hash: string): Promise<FileChange[]> {
-  const out = await git.run([
-    'diff-tree', '--no-commit-id', '-r', '-M', '--name-status', '--root', '-m', '--first-parent', hash,
-  ]);
+  // Merge commits are reported against their first parent only.
+  const parents = (await git.run(['rev-list', '--parents', '-n', '1', hash])).trim().split(' ');
+  const base = ['diff-tree', '-r', '-M', '--name-status', '--no-commit-id', '-z'];
+  const out =
+    parents.length > 1
+      ? await git.run([...base, `${hash}^1`, hash])
+      : await git.run([...base, '--root', hash]);
   return parseNameStatus(out);
 }
 
@@ -106,7 +110,7 @@ export async function rangeFiles(
   tip: string,
 ): Promise<{ mergeBase: string; files: FileChange[] }> {
   const mergeBase = (await git.run(['merge-base', baseRef, tip])).trim();
-  const out = await git.run(['diff', '--name-status', '-M', mergeBase, tip]);
+  const out = await git.run(['diff', '--name-status', '-M', '-z', mergeBase, tip]);
   return { mergeBase, files: parseNameStatus(out) };
 }
 

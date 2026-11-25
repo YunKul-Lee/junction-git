@@ -53,7 +53,7 @@ describe('queries', () => {
     const slow = await aheadOf(repo.git, 'develop', names, { forceFallback: true });
     expect(fast.get('feature/a')).toBe(2);
     expect(fast.get('develop')).toBe(0);
-    expect([...slow]).toEqual([...fast].filter(([k]) => names.includes(k)));
+    expect(Object.fromEntries(slow)).toEqual(Object.fromEntries(fast));
   });
 
   it('mergedInto', async () => {
@@ -102,6 +102,31 @@ describe('queries', () => {
         { status: 'A', path: 'renamed.txt' },
       ]),
     );
+  });
+
+  it('commitFiles handles merge, root, and unusual paths', async () => {
+    const root = (await repo.sh('rev-list', '--max-parents=0', 'HEAD')).trim();
+    expect(await commitFiles(repo.git, root)).toEqual([{ status: 'A', path: 'README.md' }]);
+
+    await repo.sh('checkout', '-b', 'side');
+    await repo.commit('side', 'side.txt', 's\n');
+    await repo.sh('checkout', 'develop');
+    await repo.commit('main', 'main.txt', 'm\n');
+    await repo.sh('merge', '--no-ff', '-m', 'merge side', 'side');
+    const merge = (await repo.sh('rev-parse', 'HEAD')).trim();
+    // First parent is develop, so only the side branch's file appears, once.
+    expect(await commitFiles(repo.git, merge)).toEqual([{ status: 'A', path: 'side.txt' }]);
+
+    const weird = ['한글 파일.txt', 'tab\there.txt', 'quote"d.txt'];
+    for (const f of weird) {
+      await fs.writeFile(path.join(repo.dir, f), 'x\n');
+    }
+    await repo.sh('add', '-A');
+    await repo.sh('commit', '-m', 'weird');
+    const files = await commitFiles(repo.git, 'HEAD');
+    expect(files.map((f) => f.path).sort()).toEqual([...weird].sort());
+    const range = await rangeFiles(repo.git, 'side', 'develop');
+    expect(range.files.map((f) => f.path)).toEqual(expect.arrayContaining(weird));
   });
 
   it('remoteUrl', async () => {

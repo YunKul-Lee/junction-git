@@ -72,10 +72,10 @@ describe('parseRefs', () => {
 
 describe('parseNameStatus', () => {
   it('parses A/M/D/R/C and strips scores', () => {
-    const out = ['A\tnew.ts', 'M\tsrc/한글 파일.ts', 'D\told.ts', 'R100\ta.ts\tb.ts', 'C75\tc.ts\td.ts'].join('\n') + '\n';
+    const out = ['A', 'new.ts', 'M', 'src/한글\t"파일".ts', 'D', 'old.ts', 'R100', 'a.ts', 'b.ts', 'C75', 'c.ts', 'd.ts', ''].join('\0');
     expect(parseNameStatus(out)).toEqual([
       { status: 'A', path: 'new.ts' },
-      { status: 'M', path: 'src/한글 파일.ts' },
+      { status: 'M', path: 'src/한글\t"파일".ts' },
       { status: 'D', path: 'old.ts' },
       { status: 'R', oldPath: 'a.ts', path: 'b.ts' },
       { status: 'C', oldPath: 'c.ts', path: 'd.ts' },

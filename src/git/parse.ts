@@ -79,18 +79,22 @@ export function parseLog(out: string): Commit[] {
   return commits;
 }
 
+/** Parses `--name-status -z` output: status NUL path NUL [path NUL] (R/C carry two paths). */
 export function parseNameStatus(out: string): FileChange[] {
+  const tokens = out.split('\0');
   const changes: FileChange[] = [];
-  for (const line of out.split('\n')) {
-    if (!line) {
+  for (let i = 0; i < tokens.length; ) {
+    const token = tokens[i++];
+    if (!token) {
       continue;
     }
-    const parts = line.split('\t');
-    const status = parts[0][0] as ChangeStatus;
+    const status = token[0] as ChangeStatus;
     if (status === 'R' || status === 'C') {
-      changes.push({ status, oldPath: parts[1], path: parts[2] });
+      const oldPath = tokens[i++];
+      const path = tokens[i++];
+      changes.push({ status, oldPath, path });
     } else {
-      changes.push({ status, path: parts[1] });
+      changes.push({ status, path: tokens[i++] });
     }
   }
   return changes;
