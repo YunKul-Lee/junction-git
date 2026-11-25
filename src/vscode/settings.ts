@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { BitbucketServer, serversFromScopes } from '../pr/bitbucket';
+import { PrServer, serversFromScopes } from '../pr/providers';
 
 export interface JunctionSettings {
   baseBranch: string;
@@ -7,7 +7,7 @@ export interface JunctionSettings {
   groupByFolder: boolean;
   commitLimit: number;
   confirmMerge: boolean;
-  bitbucketServers: BitbucketServer[];
+  bitbucketServers: PrServer[];
 }
 
 export function readSettings(scope?: vscode.Uri): JunctionSettings {
@@ -19,14 +19,14 @@ export function readSettings(scope?: vscode.Uri): JunctionSettings {
     commitLimit: Math.max(1, cfg.get<number>('commitLimit', 50)),
     confirmMerge: cfg.get<boolean>('confirmMerge', true),
     // Every scope's entries, most specific first (VS Code would otherwise let one scope's array hide the others).
-    bitbucketServers: serversFromScopes(cfg.inspect<BitbucketServer[]>('bitbucket.servers')),
+    bitbucketServers: serversFromScopes(cfg.inspect<PrServer[]>('bitbucket.servers')),
   };
 }
 
 /** Adds or replaces (by gitHost, case-insensitive) a server in the user (Global) settings only. */
-export async function saveServer(s: BitbucketServer): Promise<void> {
+export async function saveServer(s: PrServer): Promise<void> {
   const cfg = vscode.workspace.getConfiguration('junction');
-  const current = cfg.inspect<BitbucketServer[]>('bitbucket.servers')?.globalValue ?? [];
+  const current = cfg.inspect<PrServer[]>('bitbucket.servers')?.globalValue ?? [];
   const host = s.gitHost.toLowerCase();
   const next = current.filter((x) => x.gitHost.toLowerCase() !== host);
   const i = current.findIndex((x) => x.gitHost.toLowerCase() === host);

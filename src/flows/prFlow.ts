@@ -1,15 +1,15 @@
 import { remoteUrl } from '../git/queries';
 import { BranchRef, Git } from '../git/types';
 import { RepoSnapshot } from '../model/repoModel';
-import { BitbucketServer, buildPrUrl, findServer, guessServer, parseRemote } from '../pr/bitbucket';
+import { PrServer, buildPrUrl, findServer, guessDataCenter, guessPublic, parseRemote } from '../pr/providers';
 import { pushFlow } from './branchFlows';
 import { FlowResult, Ui } from './ui';
 
 export interface PrEnv {
   /** Servers from every settings scope, most specific first (the first match wins). */
-  servers(): BitbucketServer[];
+  servers(): PrServer[];
   /** Adds to or replaces (by gitHost) the entry in the user (Global) settings. */
-  saveServer(s: BitbucketServer): Promise<void>;
+  saveServer(s: PrServer): Promise<void>;
   open(url: string): Promise<void>;
   /** Opens the settings UI at `junction.bitbucket.servers`. */
   openSettings(): void;
@@ -56,7 +56,7 @@ export async function createPrFlow(c: PrCtx, b: BranchRef, target?: string): Pro
 
   let server = findServer(url, env.servers());
   if (!server) {
-    const guess = guessServer(url);
+    const guess = guessPublic(url) ?? guessDataCenter(url);
     const webUrl = await ui.input({ key: 'Bitbucket web URL for {0}', args: [parsed.host] }, {
         value: guess?.webUrl ?? 'https://',
         validate: (v) => (/^https?:\/\/[^/\s]+/.test(v.trim()) ? undefined : { key: 'Enter an http(s) URL.' }),
@@ -67,10 +67,10 @@ export async function createPrFlow(c: PrCtx, b: BranchRef, target?: string): Pro
     }
     let type = guess?.type;
     if (!type) {
-      type = await ui.pick<BitbucketServer['type']>(
+      type = await ui.pick<PrServer['type']>(
         [
-          { label: 'Bitbucket Cloud', value: 'cloud' },
-          { label: 'Bitbucket Data Center', value: 'datacenter' },
+          { label: 'Bitbucket Cloud', value: 'bitbucket-cloud' },
+          { label: 'Bitbucket Data Center', value: 'bitbucket-datacenter' },
         ],
         { key: 'Bitbucket server type' },
       );

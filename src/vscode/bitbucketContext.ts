@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { remoteUrl } from '../git/queries';
-import { maybeBitbucket } from '../pr/bitbucket';
+import { prAvailable } from '../pr/providers';
 import { BranchTreeProvider } from '../views/branchTree';
 import { readSettings } from './settings';
 
@@ -13,7 +13,7 @@ export async function updateHasBitbucketContext(tree: BranchTreeProvider): Promi
       const servers = readSettings(repo.root).bitbucketServers;
       for (const remote of snap.remotes) {
         const url = await remoteUrl(repo.git, remote);
-        if (url && maybeBitbucket(url, servers)) {
+        if (url && prAvailable(url, servers)) {
           has = true;
           break;
         }

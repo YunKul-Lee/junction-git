@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createPrFlow, PrEnv } from '../../src/flows/prFlow';
 import { BranchRef } from '../../src/git/types';
-import { BitbucketServer } from '../../src/pr/bitbucket';
+import { PrServer } from '../../src/pr/providers';
 import { loadSnapshot, RepoSnapshot } from '../../src/model/repoModel';
 import { FakeUi } from '../helpers/fakeUi';
 import { makeRepo, TestRepo } from '../helpers/repo';
@@ -23,15 +23,15 @@ describe('createPrFlow', () => {
 
   class Env implements PrEnv {
     opened: string[] = [];
-    saved: BitbucketServer[] = [];
+    saved: PrServer[] = [];
     bumps: string[] = [];
     settingsOpened = 0;
     constructor(
-      public configured: BitbucketServer[] = [],
+      public configured: PrServer[] = [],
       public nag = 0,
     ) {}
-    servers = (): BitbucketServer[] => this.configured;
-    saveServer = (s: BitbucketServer): Promise<void> => {
+    servers = (): PrServer[] => this.configured;
+    saveServer = (s: PrServer): Promise<void> => {
       this.saved.push(s);
       return Promise.resolve();
     };
@@ -48,7 +48,7 @@ describe('createPrFlow', () => {
     };
   }
 
-  const known: BitbucketServer[] = [{ gitHost: 'git.acme.com', webUrl: 'https://git.acme.com', type: 'datacenter' }];
+  const known: PrServer[] = [{ gitHost: 'git.acme.com', webUrl: 'https://git.acme.com', type: 'bitbucket-datacenter' }];
   const snapOf = (): Promise<RepoSnapshot> => loadSnapshot(repo.git, { baseBranch: '' });
   const run = async (ui: FakeUi, env: Env, target?: string) => {
     const snap = await snapOf();
@@ -81,7 +81,7 @@ describe('createPrFlow', () => {
     const env = new Env([], 3);
     expect(await run(ui, env)).toBe('done');
     expect(ui.of('input')[0].opts?.value).toBe('https://git.acme.com');
-    expect(env.saved).toEqual([{ gitHost: 'git.acme.com', webUrl: 'https://git.acme.com', type: 'datacenter' }]);
+    expect(env.saved).toEqual([{ gitHost: 'git.acme.com', webUrl: 'https://git.acme.com', type: 'bitbucket-datacenter' }]);
     expect(env.opened).toEqual([DC_PR]);
   });
 
@@ -110,11 +110,11 @@ describe('createPrFlow', () => {
 
   it('asks for the server type when the address cannot be guessed', async () => {
     await repo.sh('config', 'remote.origin.url', 'https://code.example.org/team/web.git');
-    const ui = new FakeUi(['https://code.example.org', 'cloud']);
+    const ui = new FakeUi(['https://code.example.org', 'bitbucket-cloud']);
     const env = new Env([], 3);
     expect(await run(ui, env)).toBe('done');
     expect(ui.of('input')[0].opts?.value).toBe('https://');
-    expect(env.saved).toEqual([{ gitHost: 'code.example.org', webUrl: 'https://code.example.org', type: 'cloud' }]);
+    expect(env.saved).toEqual([{ gitHost: 'code.example.org', webUrl: 'https://code.example.org', type: 'bitbucket-cloud' }]);
   });
 
   describe('with unpushed commits', () => {
