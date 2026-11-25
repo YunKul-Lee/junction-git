@@ -361,6 +361,19 @@ describe('branch flows', () => {
       expect(await pullFlow(c, ref(c.snap, 'develop'))).toBe('done');
       expect(await rev('HEAD')).toBe(remoteHash);
     });
+
+    it('honours pull.rebase for a diverged current branch', async () => {
+      repo = await makeRepo();
+      await repo.sh('config', 'pull.rebase', 'true');
+      const remoteHash = await pushFromOtherClone('develop');
+      await repo.commit('local');
+      const ui = new FakeUi();
+      const c = await ctx(ui);
+      expect(await pullFlow(c, ref(c.snap, 'develop'))).toBe('done');
+      expect(ui.of('error')).toHaveLength(0);
+      expect(await rev('HEAD^')).toBe(remoteHash);
+      expect((await repo.sh('log', '-1', '--format=%s')).trim()).toBe('local');
+    });
   });
 
   describe('sync', () => {
@@ -385,10 +398,19 @@ describe('branch flows', () => {
   });
 
   describe('cleanup merged', () => {
+    /** Creates `name` with one commit and merges it into develop with --no-ff, pushing develop. */
+    async function mergedBranch(name: string): Promise<void> {
+      await repo.sh('checkout', '-b', name, 'develop');
+      await repo.commit(`${name} work`);
+      await repo.sh('checkout', 'develop');
+      await repo.sh('merge', '--no-ff', '--no-edit', name);
+      await repo.sh('push', 'origin', 'develop');
+    }
+
     it('deletes only the selected merged branches', async () => {
       repo = await makeRepo();
-      await repo.sh('branch', 'feature/m1');
-      await repo.sh('branch', 'feature/m2');
+      await mergedBranch('feature/m1');
+      await mergedBranch('feature/m2');
       await repo.sh('checkout', '-b', 'feature/u');
       await repo.commit('u1');
       await repo.sh('checkout', 'develop');
@@ -403,9 +425,48 @@ describe('branch flows', () => {
       expect(await hasLocal('develop')).toBe(true);
     });
 
+    it('deletes a branch merged into origin/develop whose upstream was pruned, from another branch', async () => {
+      repo = await makeRepo();
+      await repo.sh('checkout', '-b', 'feature/m', 'develop');
+      await repo.commit('m1');
+      await repo.sh('push', '-u', 'origin', 'feature/m');
+      // Merge on the server side only: local develop stays behind origin/develop.
+      await repo.sh('checkout', '--detach', 'origin/develop');
+      await repo.sh('merge', '--no-ff', '--no-edit', 'feature/m');
+      await repo.sh('push', 'origin', 'HEAD:refs/heads/develop');
+      await repo.sh('push', 'origin', '--delete', 'feature/m');
+      await repo.sh('fetch', '--prune', 'origin');
+      await repo.sh('checkout', '-b', 'feature/other', 'develop');
+      await repo.commit('o1');
+      const ui = new FakeUi(['all']);
+      const c = await ctx(ui);
+      expect(c.snap.merged.has('feature/m')).toBe(true);
+      expect(await cleanupMergedFlow(c)).toBe('done');
+      expect(ui.of('error')).toHaveLength(0);
+      expect(await hasLocal('feature/m')).toBe(false);
+    });
+
+    it('does not delete a chosen branch that is no longer merged', async () => {
+      repo = await makeRepo();
+      await mergedBranch('feature/m1');
+      const ui = new FakeUi([
+        async () => {
+          // The branch gains a commit after the snapshot was taken.
+          await repo.sh('checkout', 'feature/m1');
+          await repo.commit('late');
+          await repo.sh('checkout', 'develop');
+          return 'all';
+        },
+      ]);
+      const c = await ctx(ui);
+      expect(await cleanupMergedFlow(c)).toBe('failed');
+      expect(await hasLocal('feature/m1')).toBe(true);
+      expect(ui.of('error')).toHaveLength(1);
+    });
+
     it('deletes nothing when the picker is dismissed', async () => {
       repo = await makeRepo();
-      await repo.sh('branch', 'feature/m1');
+      await mergedBranch('feature/m1');
       const c = await ctx(new FakeUi());
       expect(await cleanupMergedFlow(c)).toBe('cancelled');
       expect(await hasLocal('feature/m1')).toBe(true);

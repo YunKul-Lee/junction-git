@@ -9,6 +9,7 @@ import { MergeResult } from '../flows/mergeFlows';
 import { FlowResult, Msg, Ui } from '../flows/ui';
 import { BranchRef } from '../git/types';
 import { fetchAll } from '../git/operations';
+import { repoState } from '../git/queries';
 import { loadSnapshot } from '../model/repoModel';
 import { quickCheckoutOrder } from '../model/tree';
 import { GitConnection, RepoHandle } from '../vscode/gitApi';
@@ -35,7 +36,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
     vscode.workspace.registerTextDocumentContentProvider(EMPTY_SCHEME, { provideTextDocumentContent: () => '' }),
   );
 
-  reg('junction.refresh', () => tree.refresh());
+  reg('junction.refresh', () => tree.refresh(undefined, { force: true }));
 
   reg('junction.filter', async () => {
     const value = await vscode.window.showInputBox({
@@ -75,12 +76,16 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
   // ---- branch operations --------------------------------------------------
 
   /** Tells the user the operation stopped on conflicts; deliberately not awaited so the tree refreshes at once. */
-  const offerConflictHandoff = async (repo: RepoHandle): Promise<void> => {
+  const offerConflictHandoff = async (repo: RepoHandle, rebasing: boolean): Promise<void> => {
     const open = vscode.l10n.t('Open Conflicts');
+    const cont = vscode.l10n.t('Continue');
     const abort = vscode.l10n.t('Abort');
-    const picked = await vscode.window.showWarningMessage(vscode.l10n.t('Conflicts found.'), open, abort);
+    const buttons = rebasing ? [open, cont, abort] : [open, abort];
+    const picked = await vscode.window.showWarningMessage(vscode.l10n.t('Conflicts found.'), ...buttons);
     if (picked === open) {
       await vscode.commands.executeCommand('junction.openConflicts', { repo });
+    } else if (picked === cont && rebasing) {
+      await vscode.commands.executeCommand('junction.continueOperation', { repo });
     } else if (picked === abort) {
       await vscode.commands.executeCommand('junction.abortOperation', { repo });
     }
@@ -98,7 +103,8 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
         return flow({ git: repo.git, ui, snap });
       });
       if (result === 'conflicts') {
-        void offerConflictHandoff(repo);
+        const rebasing = await repoState(repo.git).then((st) => st.rebase !== undefined, () => false);
+        void offerConflictHandoff(repo, rebasing);
       }
     } catch (e) {
       ui.error({ key: 'Unexpected error: {0}', args: [e instanceof Error ? e.message : String(e)] }, e);

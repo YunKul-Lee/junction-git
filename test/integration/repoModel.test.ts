@@ -11,7 +11,12 @@ describe('loadSnapshot', () => {
 
   it('builds a snapshot with base, merged and ahead counts', async () => {
     repo = await makeRepo();
-    await repo.sh('branch', 'feature/merged');
+    await repo.sh('checkout', '-b', 'feature/merged');
+    await repo.commit('m1');
+    await repo.sh('checkout', 'develop');
+    await repo.sh('merge', '--no-ff', '--no-edit', 'feature/merged');
+    await repo.sh('push', 'origin', 'develop');
+    await repo.sh('branch', 'feature/fresh');
     await repo.sh('checkout', '-b', 'feature/ahead');
     await repo.commit('a1');
     await repo.commit('a2');
@@ -22,6 +27,8 @@ describe('loadSnapshot', () => {
     expect(snap.remotes).toEqual(['origin']);
     expect(snap.merged.has('feature/merged')).toBe(true);
     expect(snap.merged.has('feature/ahead')).toBe(false);
+    // No commits of its own: its tip is on develop's first-parent chain.
+    expect(snap.merged.has('feature/fresh')).toBe(false);
     expect(snap.merged.has('develop')).toBe(false);
     expect(snap.aheadOfBase.get('feature/ahead')).toBe(2);
     expect(snap.aheadOfBase.get('feature/merged')).toBe(0);

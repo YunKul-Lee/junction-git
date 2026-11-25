@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { BitbucketServer } from '../pr/bitbucket';
+import { BitbucketServer, serversFromScopes } from '../pr/bitbucket';
 
 export interface JunctionSettings {
   baseBranch: string;
@@ -18,7 +18,8 @@ export function readSettings(scope?: vscode.Uri): JunctionSettings {
     groupByFolder: cfg.get<boolean>('groupByFolder', true),
     commitLimit: Math.max(1, cfg.get<number>('commitLimit', 50)),
     confirmMerge: cfg.get<boolean>('confirmMerge', true),
-    bitbucketServers: cfg.get<BitbucketServer[]>('bitbucket.servers', []),
+    // Every scope's entries, most specific first (VS Code would otherwise let one scope's array hide the others).
+    bitbucketServers: serversFromScopes(cfg.inspect<BitbucketServer[]>('bitbucket.servers')),
   };
 }
 

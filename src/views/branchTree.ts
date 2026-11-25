@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { commitFiles, logRange, rangeFiles } from '../git/queries';
 import { Commit } from '../git/types';
-import { loadSnapshot, RepoSnapshot } from '../model/repoModel';
+import { loadSnapshot, RepoSnapshot, sameSnapshot } from '../model/repoModel';
 import { buildEntries, TreeEntry } from '../model/tree';
 import { GitConnection, RepoHandle } from '../vscode/gitApi';
 import { readSettings } from '../vscode/settings';
@@ -40,8 +40,10 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
   private subscribed = new Map<string, vscode.Disposable>();
   private pending = new Set<string>();
   private pendingAll = false;
+  /** Re-render even when no snapshot changed (settings that affect rendering, the Refresh button). */
+  private pendingForce = false;
   private timer: NodeJS.Timeout | undefined;
-  private running: { abort: AbortController; roots: Set<string> | 'all' } | undefined;
+  private running: { abort: AbortController; roots: Set<string> | 'all'; force: boolean } | undefined;
   private filter: string | undefined;
   private filterRaw: string | undefined;
   private compare: { root: string; a: string; b: string } | undefined;
@@ -53,7 +55,8 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
   ) {
     this.sub = conn.onDidChangeRepos(() => {
       this.syncSubscriptions(conn.repos());
-      this.refresh();
+      // The set of repos decides the root's shape (one repo inline, several as repo nodes).
+      this.refresh(undefined, { force: true });
     });
   }
 
@@ -69,7 +72,11 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
 
   // ---- public API -------------------------------------------------------
 
-  refresh(root?: vscode.Uri): void {
+  /** Reloads `root` (or every repo). The tree re-renders only when a snapshot changed, unless `force`. */
+  refresh(root?: vscode.Uri, opts?: { force?: boolean }): void {
+    if (opts?.force) {
+      this.pendingForce = true;
+    }
     if (root) {
       this.pending.add(root.fsPath);
     } else {
@@ -78,6 +85,9 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
     if (this.running) {
       // Restart: the aborted run's targets must be covered by the next one.
       this.running.abort.abort();
+      if (this.running.force) {
+        this.pendingForce = true;
+      }
       if (this.running.roots === 'all') {
         this.pendingAll = true;
       } else {
@@ -134,10 +144,12 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
   private async runRefresh(): Promise<void> {
     const all = this.pendingAll;
     const roots = new Set(this.pending);
+    const force = this.pendingForce;
     this.pendingAll = false;
+    this.pendingForce = false;
     this.pending.clear();
     const abort = new AbortController();
-    this.running = { abort, roots: all ? 'all' : roots };
+    this.running = { abort, roots: all ? 'all' : roots, force };
     const targets = this.conn.repos().filter((r) => all || roots.has(r.root.fsPath));
     const fresh = await Promise.all(targets.map(async (r) => [r, await this.load(r, abort.signal)] as const));
     if (abort.signal.aborted) {
@@ -145,16 +157,20 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
     }
     this.running = undefined;
     const live = new Set(this.conn.repos().map((r) => r.root.fsPath));
+    let changed = force;
     for (const k of [...this.results.keys()]) {
       if (!live.has(k)) {
         this.results.delete(k);
         this.snaps.delete(k);
+        changed = true;
       }
     }
     for (const [repo, result] of fresh) {
-      this.store(repo, result);
+      changed = this.store(repo, result) || changed;
     }
-    this.changeEmitter.fire(undefined);
+    if (changed) {
+      this.changeEmitter.fire(undefined);
+    }
   }
 
   private async load(repo: RepoHandle, signal?: AbortSignal): Promise<LoadResult> {
@@ -170,15 +186,29 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
     }
   }
 
-  private store(repo: RepoHandle, result: LoadResult): void {
+  /**
+   * Stores a load result and returns whether what the tree shows changed. An unchanged snapshot keeps the
+   * stored one; a failed load keeps the last good snapshot (the error is already logged) and shows the
+   * error node only when there is none.
+   */
+  private store(repo: RepoHandle, result: LoadResult): boolean {
     const k = repo.root.fsPath;
-    this.results.set(k, Promise.resolve(result));
+    const prev = this.snaps.get(k);
     if ('snap' in result) {
+      if (prev && sameSnapshot(prev, result.snap)) {
+        this.results.set(k, Promise.resolve({ snap: prev }));
+        return false;
+      }
+      this.results.set(k, Promise.resolve(result));
       this.snaps.set(k, result.snap);
+    } else if (prev) {
+      this.results.set(k, Promise.resolve({ snap: prev }));
+      return false;
     } else {
-      this.snaps.delete(k);
+      this.results.set(k, Promise.resolve(result));
     }
     this.loadedEmitter.fire();
+    return true;
   }
 
   private result(repo: RepoHandle): Promise<LoadResult> {
@@ -258,7 +288,7 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
       return this.branchChildren(element);
     }
     if (element instanceof RangeChangesNode) {
-      const { mergeBase, files } = await rangeFiles(element.repo.git, element.baseRef, element.tip.name);
+      const { mergeBase, files } = await rangeFiles(element.repo.git, element.baseRef, element.tip.hash);
       const refs = { left: mergeBase, right: element.tip.hash };
       return files.map((f) => new FileNode(element.repo, f, refs, element.id as string));
     }

@@ -68,6 +68,14 @@ describe('createPrFlow', () => {
     expect(env.saved).toHaveLength(0);
   });
 
+  it('uses the upstream branch name as the PR source when it differs from the local name', async () => {
+    await repo.sh('push', '-u', 'origin', 'feature/x:feature/y');
+    const ui = new FakeUi();
+    const env = new Env(known, 3);
+    expect(await run(ui, env)).toBe('done');
+    expect(env.opened).toEqual([DC_PR.replace('feature%2Fx', 'feature%2Fy')]);
+  });
+
   it('confirms a guessed address and saves it when none is configured', async () => {
     const ui = new FakeUi(['https://git.acme.com']);
     const env = new Env([], 3);

@@ -91,3 +91,28 @@ export function buildPrUrl(
     : `projects/${owner.toUpperCase()}`;
   return `${base}/${projectPath}/repos/${repo}/pull-requests${query}`;
 }
+
+/** Hosts that are never Bitbucket: their remotes get no pull request menu unless configured as a server. */
+const NON_BITBUCKET_HOSTS = new Set(['github.com', 'gitlab.com', 'dev.azure.com', 'ssh.dev.azure.com', 'vs-ssh.visualstudio.com']);
+
+/**
+ * True when the remote may be a Bitbucket repository: it matches a configured server, or its host is not
+ * a well-known non-Bitbucket host. Local paths (including Windows drive paths) are never Bitbucket.
+ */
+export function maybeBitbucket(remoteUrl: string, configured: BitbucketServer[]): boolean {
+  if (findServer(remoteUrl, configured)) return true;
+  const parsed = parseRemote(remoteUrl);
+  if (!parsed || parsed.host.length < 2) return false;
+  return !NON_BITBUCKET_HOSTS.has(parsed.host);
+}
+
+/**
+ * The servers from every settings scope, most specific first: VS Code replaces arrays across scopes,
+ * so a workspace list would otherwise hide the user's global entries. `findServer` picks the first match.
+ */
+export function serversFromScopes(
+  inspected: { workspaceFolderValue?: BitbucketServer[]; workspaceValue?: BitbucketServer[]; globalValue?: BitbucketServer[] } | undefined,
+): BitbucketServer[] {
+  const list = (v: unknown): BitbucketServer[] => (Array.isArray(v) ? v : []);
+  return [...list(inspected?.workspaceFolderValue), ...list(inspected?.workspaceValue), ...list(inspected?.globalValue)];
+}

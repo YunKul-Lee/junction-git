@@ -1,5 +1,5 @@
 import * as ops from '../git/operations';
-import { logRange } from '../git/queries';
+import { isAncestor, logRange } from '../git/queries';
 import { BranchRef, Git, GitError } from '../git/types';
 import { RepoSnapshot } from '../model/repoModel';
 import { Msg, Ui } from './ui';
@@ -378,10 +378,17 @@ export async function cleanupMergedFlow(c: FlowCtx): Promise<FlowResult> {
   }
   const failed: string[] = [];
   let firstError: unknown;
+  const compareRef = snap.base?.compareRef;
   for (const name of chosen) {
     try {
-      // Never forced: git re-checks that the branch is merged.
-      await ops.deleteLocal(git, name, false);
+      // Re-checked against the base right before deleting; `git branch -d` would check against
+      // the upstream or HEAD instead, which is wrong once the merged branch's upstream is pruned.
+      if (!compareRef || !(await isAncestor(git, `refs/heads/${name}`, compareRef))) {
+        failed.push(name);
+        firstError ??= new Error(`${name} is not merged into ${compareRef ?? 'the base branch'}`);
+        continue;
+      }
+      await ops.deleteLocal(git, name, true);
     } catch (e) {
       failed.push(name);
       firstError ??= e;

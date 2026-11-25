@@ -34,7 +34,8 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<{ tree: Br
         void updateHasBitbucketContext(tree);
       }
       if (e.affectsConfiguration('junction')) {
-        tree.refresh();
+        // Settings such as sorting or grouping change the rendering without changing any snapshot.
+        tree.refresh(undefined, { force: true });
       }
     }),
   );

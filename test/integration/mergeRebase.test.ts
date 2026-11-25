@@ -43,6 +43,24 @@ describe('merge and rebase flows', () => {
     expect((await repo.sh('merge-base', '--is-ancestor', t, 'HEAD').then(() => true))).toBe(true);
   });
 
+  it('merge commit message names the branch by its short name', async () => {
+    await repo.sh('switch', '-c', 'topic');
+    await repo.commit('topic work', 'topic.txt', 'x\n');
+    await repo.sh('push', 'origin', 'topic');
+    await repo.sh('switch', 'develop');
+    await repo.commit('develop work', 'dev.txt', 'y\n');
+    const { c } = await ctx();
+    expect(await mergeIntoCurrentFlow(c, ref(c.snap, 'topic'), { confirm: false })).toBe('done');
+    expect((await repo.sh('log', '-1', '--format=%s')).trim()).toBe("Merge branch 'topic' into develop");
+
+    await repo.sh('switch', '-c', 'other', 'HEAD~1');
+    await repo.commit('other work', 'other.txt', 'z\n');
+    const { c: c2 } = await ctx();
+    const remote = c2.snap.branches.find((b) => b.kind === 'remote' && b.name === 'origin/topic')!;
+    expect(await mergeIntoCurrentFlow(c2, remote, { confirm: false })).toBe('done');
+    expect((await repo.sh('log', '-1', '--format=%s')).trim()).toBe("Merge remote-tracking branch 'origin/topic' into other");
+  });
+
   it('merge conflict hands off and abort restores HEAD', async () => {
     await conflicting();
     const before = await rev('HEAD');

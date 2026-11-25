@@ -53,7 +53,9 @@ How the PR page opens:
 ## Known limitations
 
 - Pull requests are created in the browser. Junction opens a prefilled page and does not call the Bitbucket API or ask for credentials.
-- Squash merges are not detected as merged, because the original commits are not ancestors of the base branch. Such branches keep their normal badge.
+- Squash merges are not detected as merged, because the original commits are not ancestors of the base branch. Such branches keep their normal badge. Likewise a branch with no commits of its own (its tip is on the base branch's main line, e.g. just created or fast-forward merged) is not shown as merged.
+- Junction runs git non-interactively, so git never prompts for a password. HTTPS remotes need a credential helper and SSH keys need a running agent (or no passphrase) for fetch, pull and push to work.
+- Git runs with `LC_ALL=C`, so git's own messages shown in errors and in the Junction output channel are in English.
 - The PR link relies on VS Code passing the URL string through unchanged when opening it externally. If a proxy or custom link handler rewrites URLs, the prefilled branches may be lost.
 
 ## Manual QA

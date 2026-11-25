@@ -57,9 +57,37 @@ export async function aheadOf(
   return result;
 }
 
+/**
+ * Local branches merged into `baseRef`. A branch whose tip is on the first-parent chain of `baseRef`
+ * (e.g. freshly created from it, with no commits of its own) does not count as merged.
+ */
 export async function mergedInto(git: Git, baseRef: string): Promise<Set<string>> {
-  const out = await git.run(['for-each-ref', '--merged', baseRef, '--format=%(refname:lstrip=2)', 'refs/heads']);
-  return new Set(out.split('\n').filter(Boolean));
+  const [out, chain] = await Promise.all([
+    git.run(['for-each-ref', '--merged', baseRef, '--format=%(refname:lstrip=2)%00%(objectname)', 'refs/heads']),
+    git.run(['rev-list', '--first-parent', baseRef, '--']),
+  ]);
+  const firstParent = new Set(chain.split('\n').filter(Boolean));
+  const merged = new Set<string>();
+  for (const line of out.split('\n')) {
+    const [name, hash] = line.split('\0');
+    if (name && hash && !firstParent.has(hash)) {
+      merged.add(name);
+    }
+  }
+  return merged;
+}
+
+/** True when `ancestor` is reachable from `descendant`. */
+export async function isAncestor(git: Git, ancestor: string, descendant: string): Promise<boolean> {
+  try {
+    await git.run(['merge-base', '--is-ancestor', ancestor, descendant]);
+    return true;
+  } catch (e) {
+    if (e instanceof GitError && e.exitCode === 1) {
+      return false;
+    }
+    throw e;
+  }
 }
 
 export async function recentCheckouts(git: Git, limit = 100): Promise<string[]> {
@@ -110,7 +138,7 @@ export async function rangeFiles(
   tip: string,
 ): Promise<{ mergeBase: string; files: FileChange[] }> {
   const mergeBase = (await git.run(['merge-base', baseRef, tip])).trim();
-  const out = await git.run(['diff', '--name-status', '-M', '-z', mergeBase, tip]);
+  const out = await git.run(['diff', '--name-status', '-M', '-z', mergeBase, tip, '--']);
   return { mergeBase, files: parseNameStatus(out) };
 }
 
@@ -135,7 +163,8 @@ async function readInt(file: string): Promise<number | undefined> {
 }
 
 export async function repoState(git: Git): Promise<RepoState> {
-  const status = await git.run(['status', '--porcelain=v2', '--branch']);
+  // Background refreshes must not take the optional index lock or walk untracked files (they never count as dirty).
+  const status = await git.run(['--no-optional-locks', 'status', '--porcelain=v2', '--branch', '-uno']);
   let head: string | undefined;
   let detached = false;
   let dirty = false;

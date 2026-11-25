@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.0.1
+## 0.1.0
 
 - Branch sidebar with local and remote branches, folders, ahead/behind and merged badges.
 - Checkout, create, rename, delete, push, pull, merge and rebase from the tree.

@@ -34,7 +34,8 @@ export async function mergeIntoCurrentFlow(c: FlowCtx, b: BranchRef, opts: { con
     }
   }
   try {
-    await ops.merge(git, fullRef(b));
+    // The short name (`topic`, `origin/topic`) keeps git's default merge message readable.
+    await ops.merge(git, b.name);
     return 'done';
   } catch (e) {
     if (e instanceof GitError && (await stoppedOnConflicts(git))) {

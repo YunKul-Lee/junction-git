@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
 import { remoteUrl } from '../git/queries';
-import { findServer, guessServer } from '../pr/bitbucket';
+import { maybeBitbucket } from '../pr/bitbucket';
 import { BranchTreeProvider } from '../views/branchTree';
 import { readSettings } from './settings';
 
-/** Sets `junction.hasBitbucket`: true when any loaded repo has a remote that is configured or guessable as Bitbucket. */
+/** Sets `junction.hasBitbucket`: true when any loaded repo has a remote that is configured or may be Bitbucket
+ * (any host but the well-known non-Bitbucket ones); the first-use prompt asks for the rest. */
 export async function updateHasBitbucketContext(tree: BranchTreeProvider): Promise<void> {
   let has = false;
   try {
@@ -12,7 +13,7 @@ export async function updateHasBitbucketContext(tree: BranchTreeProvider): Promi
       const servers = readSettings(repo.root).bitbucketServers;
       for (const remote of snap.remotes) {
         const url = await remoteUrl(repo.git, remote);
-        if (url && (findServer(url, servers) ?? guessServer(url))) {
+        if (url && maybeBitbucket(url, servers)) {
           has = true;
           break;
         }

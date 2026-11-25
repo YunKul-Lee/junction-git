@@ -6,7 +6,7 @@ import { pushFlow } from './branchFlows';
 import { FlowResult, Ui } from './ui';
 
 export interface PrEnv {
-  /** Merged settings value (VS Code resolves workspace-over-user precedence). */
+  /** Servers from every settings scope, most specific first (the first match wins). */
   servers(): BitbucketServer[];
   /** Adds to or replaces (by gitHost) the entry in the user (Global) settings. */
   saveServer(s: BitbucketServer): Promise<void>;
@@ -93,7 +93,11 @@ export async function createPrFlow(c: PrCtx, b: BranchRef, target?: string): Pro
     }
   }
 
-  const prUrl = buildPrUrl(server, url, b.name, targetBranch);
+  // The branch as it exists on the server: the upstream's name when tracked, else the name the push just used.
+  const upstream = b.upstreamGone ? undefined : b.upstream;
+  const upstreamRemote = upstream ? snap.remotes.find((r) => upstream.startsWith(`${r}/`)) : undefined;
+  const source = upstream && upstreamRemote ? upstream.slice(upstreamRemote.length + 1) : b.name;
+  const prUrl = buildPrUrl(server, url, source, targetBranch);
   if (!prUrl) {
     ui.error({ key: 'Could not build a pull request URL for this remote.' });
     return 'failed';

@@ -129,6 +129,14 @@ describe('queries', () => {
     expect(range.files.map((f) => f.path)).toEqual(expect.arrayContaining(weird));
   });
 
+  it('rangeFiles works when the tip branch name equals a file path', async () => {
+    await repo.sh('checkout', '-b', 'README.md');
+    await repo.commit('edit', 'README.md', 'changed\n');
+    await repo.sh('checkout', 'develop');
+    const range = await rangeFiles(repo.git, 'develop', 'README.md');
+    expect(range.files).toEqual([{ status: 'M', path: 'README.md' }]);
+  });
+
   it('remoteUrl', async () => {
     expect(await remoteUrl(repo.git, 'origin')).toBe(repo.remoteDir);
     expect(await remoteUrl(repo.git, 'nope')).toBeUndefined();
@@ -143,6 +151,14 @@ describe('queries', () => {
       expect((await repoState(repo.git)).dirty).toBe(false);
       await fs.writeFile(path.join(repo.dir, 'README.md'), 'changed\n');
       expect((await repoState(repo.git)).dirty).toBe(true);
+    });
+    it('runs status without optional locks and without scanning untracked files', async () => {
+      const calls: string[][] = [];
+      const git = { ...repo.git, run: (args: string[], o?: Parameters<typeof repo.git.run>[1]) => (calls.push(args), repo.git.run(args, o)) };
+      await repoState(git);
+      const status = calls.find((a) => a.includes('status'))!;
+      expect(status.slice(0, 2)).toEqual(['--no-optional-locks', 'status']);
+      expect(status).toContain('-uno');
     });
     it('detached', async () => {
       await repo.sh('checkout', '--detach');

@@ -20,6 +20,7 @@
   "Commit or stash your changes first.": "먼저 변경 사항을 커밋하거나 스태시하세요.",
   "Compare: {0} ↔ {1}": "비교: {0} ↔ {1}",
   "Conflicts found.": "충돌이 발생했습니다.",
+  "Continue": "계속",
   "Continuing…": "계속하는 중…",
   "Could not abort.": "중단하지 못했습니다.",
   "Could not build a pull request URL for this remote.": "이 원격 저장소의 PR 주소를 만들 수 없습니다.",

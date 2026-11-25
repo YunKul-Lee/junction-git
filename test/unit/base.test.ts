@@ -27,6 +27,10 @@ describe('resolveBaseBranch', () => {
       name: 'develop', compareRef: 'develop', local: 'develop', remoteRef: undefined,
     });
   });
+  it('trims the configured value', () => {
+    expect(resolveBaseBranch(' main \n', [local('main'), local('develop')])?.name).toBe('main');
+    expect(resolveBaseBranch('   ', [local('develop')])?.name).toBe('develop');
+  });
   it('configured wins and never falls through', () => {
     expect(resolveBaseBranch('release', [local('develop'), local('release')])?.name).toBe('release');
     expect(resolveBaseBranch('release', [local('develop'), local('main')])).toBeUndefined();

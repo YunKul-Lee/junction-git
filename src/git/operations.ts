@@ -108,9 +108,9 @@ export async function push(
   await git.run(args);
 }
 
-/** Fast-forward-only pull of the current branch. */
+/** Pulls the current branch as the user's git config says (pull.rebase, pull.ff, ...). GIT_EDITOR=true keeps a merge from opening an editor. */
 export async function pull(git: Git): Promise<void> {
-  await git.run(['pull', '--ff-only']);
+  await git.run(['pull'], { env: { GIT_EDITOR: 'true' } });
 }
 
 /** Updates local branch `local` to `remote/remoteBranch`; git refuses anything but a fast-forward. */
@@ -134,10 +134,9 @@ export async function stashPop(git: Git): Promise<void> {
   await git.run(['stash', 'pop']);
 }
 
-// `ref` is fully qualified (refs/heads/x, refs/remotes/origin/x) so it can never be read as an option or a pathspec.
-
-export async function merge(git: Git, ref: string): Promise<void> {
-  await git.run(['merge', '--no-edit', ref]);
+/** `name` is a short branch name (`topic`, `origin/topic`) so git's default message reads well; branch names never start with '-'. */
+export async function merge(git: Git, name: string): Promise<void> {
+  await git.run(['merge', '--no-edit', name]);
 }
 
 export async function mergeAbort(git: Git): Promise<void> {
@@ -149,6 +148,7 @@ export async function mergeContinue(git: Git): Promise<void> {
   await git.run(['merge', '--continue'], { env: { GIT_EDITOR: 'true' } });
 }
 
+/** `onto` is fully qualified (refs/heads/x, refs/remotes/origin/x) so it can never be read as an option. */
 export async function rebase(git: Git, onto: string): Promise<void> {
   await git.run(['rebase', onto]);
 }

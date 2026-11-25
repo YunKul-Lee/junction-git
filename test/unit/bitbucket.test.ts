@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPrUrl, findServer, guessServer, parseRemote, BitbucketServer } from '../../src/pr/bitbucket';
+import { buildPrUrl, findServer, guessServer, maybeBitbucket, parseRemote, serversFromScopes, BitbucketServer } from '../../src/pr/bitbucket';
 
 const enc = encodeURIComponent;
 const DC_QUERY = (src: string, dst: string) =>
@@ -103,5 +103,59 @@ describe('buildPrUrl', () => {
     expect(buildPrUrl(cloud, 'garbage', 'a', 'b')).toBeUndefined();
     expect(buildPrUrl(cloud, 'https://bitbucket.org/web.git', 'a', 'b')).toBeUndefined();
     expect(buildPrUrl(cloud, 'https://bitbucket.org/', 'a', 'b')).toBeUndefined();
+  });
+});
+
+describe('maybeBitbucket', () => {
+  const configured: BitbucketServer[] = [{ gitHost: 'github.com', webUrl: 'https://bb.example', type: 'datacenter' }];
+
+  it.each([
+    'git@bitbucket.org:acme/web.git',
+    'git@git.acme.com:PROJ/repo.git',
+    'ssh://git@git.acme.com/PROJ/repo.git',
+    'https://git.acme.com/scm/proj/repo.git',
+    'work-alias:PROJ/repo.git',
+  ])('is true for a host that may be Bitbucket: %s', (url) => {
+    expect(maybeBitbucket(url, [])).toBe(true);
+  });
+
+  it.each([
+    'git@github.com:acme/web.git',
+    'https://github.com/acme/web.git',
+    'https://gitlab.com/acme/web.git',
+    'https://dev.azure.com/acme/proj/_git/web',
+    'git@ssh.dev.azure.com:v3/acme/proj/web',
+    'acme@vs-ssh.visualstudio.com:v3/acme/proj/web',
+    'https://GitHub.com/acme/web.git',
+    '/tmp/remote.git',
+    'file:///tmp/remote.git',
+    'C:\\repos\\remote.git',
+    'not a url',
+  ])('is false for a known non-Bitbucket host or a local path: %s', (url) => {
+    expect(maybeBitbucket(url, [])).toBe(false);
+  });
+
+  it('is true for a known host the user configured as a server', () => {
+    expect(maybeBitbucket('git@github.com:acme/web.git', configured)).toBe(true);
+  });
+});
+
+describe('serversFromScopes', () => {
+  const s = (gitHost: string): BitbucketServer => ({ gitHost, webUrl: `https://${gitHost}`, type: 'datacenter' });
+
+  it('concatenates folder, workspace and global values in that order', () => {
+    expect(
+      serversFromScopes({ workspaceFolderValue: [s('a')], workspaceValue: [s('b')], globalValue: [s('c'), s('a')] }),
+    ).toEqual([s('a'), s('b'), s('c'), s('a')]);
+  });
+
+  it('handles missing scopes', () => {
+    expect(serversFromScopes(undefined)).toEqual([]);
+    expect(serversFromScopes({ globalValue: [s('c')] })).toEqual([s('c')]);
+  });
+
+  it('lets the workspace entry win in findServer', () => {
+    const list = serversFromScopes({ workspaceValue: [{ ...s('h'), webUrl: 'https://ws' }], globalValue: [s('h')] });
+    expect(findServer('git@h:P/r.git', list)?.webUrl).toBe('https://ws');
   });
 });
