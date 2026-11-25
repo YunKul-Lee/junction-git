@@ -12,7 +12,8 @@ export interface Ui {
   ): Promise<string | undefined>;
   pickMany<T>(items: { label: string; picked: boolean; value: T }[], title: Msg): Promise<T[] | undefined>;
   pick<T>(items: { label: string; description?: string; value: T }[], title: Msg): Promise<T | undefined>;
-  info(msg: Msg): void;
+  /** `onPick` is called with the index of the clicked action; it never blocks the caller. */
+  info(msg: Msg, actions?: Msg[], onPick?: (index: number) => void): void;
   error(msg: Msg, err?: unknown): void;
   progress<T>(title: Msg, fn: (signal: AbortSignal) => Promise<T>): Promise<T>;
 }

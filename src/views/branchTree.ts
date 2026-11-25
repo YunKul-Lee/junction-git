@@ -30,6 +30,9 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
   readonly onDidChangeTreeData = this.changeEmitter.event;
   private readonly filterEmitter = new vscode.EventEmitter<string | undefined>();
   readonly onDidChangeFilter = this.filterEmitter.event;
+  private readonly loadedEmitter = new vscode.EventEmitter<void>();
+  /** Fires whenever a snapshot has been stored (after a refresh or a lazy first load). */
+  readonly onDidLoadSnapshots = this.loadedEmitter.event;
 
   private results = new Map<string, Promise<LoadResult>>();
   private snaps = new Map<string, RepoSnapshot>();
@@ -61,6 +64,7 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
     this.subscribed.forEach((d) => d.dispose());
     this.changeEmitter.dispose();
     this.filterEmitter.dispose();
+    this.loadedEmitter.dispose();
   }
 
   // ---- public API -------------------------------------------------------
@@ -108,6 +112,14 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
 
   snapshot(root: vscode.Uri): RepoSnapshot | undefined {
     return this.snaps.get(root.fsPath);
+  }
+
+  /** Every currently loaded repository with its snapshot. */
+  loadedRepos(): { repo: RepoHandle; snap: RepoSnapshot }[] {
+    return this.conn.repos().flatMap((repo) => {
+      const snap = this.snaps.get(repo.root.fsPath);
+      return snap ? [{ repo, snap }] : [];
+    });
   }
 
   /** Shows `commitLimit` more commits under the node's parent. */
@@ -166,6 +178,7 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
     } else {
       this.snaps.delete(k);
     }
+    this.loadedEmitter.fire();
   }
 
   private result(repo: RepoHandle): Promise<LoadResult> {

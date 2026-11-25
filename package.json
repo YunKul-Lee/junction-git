@@ -130,6 +130,21 @@
         "icon": "$(trash)"
       },
       {
+        "command": "junction.createPr",
+        "title": "%junction.cmd.createPr%",
+        "category": "Junction"
+      },
+      {
+        "command": "junction.createPrPickTarget",
+        "title": "%junction.cmd.createPrPickTarget%",
+        "category": "Junction"
+      },
+      {
+        "command": "junction.bitbucket.changeWebUrl",
+        "title": "%junction.cmd.changeWebUrl%",
+        "category": "Junction"
+      },
+      {
         "command": "junction.copyBranchName",
         "title": "%junction.cmd.copyBranchName%",
         "category": "Junction"
@@ -257,6 +272,16 @@
           "group": "3_manage@3"
         },
         {
+          "command": "junction.createPr",
+          "when": "view == junction.branches && junction.hasBitbucket && viewItem =~ /^branch-local(-head|-merged)?$/",
+          "group": "2_sync@3"
+        },
+        {
+          "command": "junction.createPrPickTarget",
+          "when": "view == junction.branches && junction.hasBitbucket && viewItem =~ /^branch-local(-head|-merged)?$/",
+          "group": "2_sync@4"
+        },
+        {
           "command": "junction.copyBranchName",
           "when": "view == junction.branches && viewItem =~ /^branch-(local(-head|-merged)?|remote)$/",
           "group": "9_copy@0"
@@ -329,6 +354,14 @@
         },
         {
           "command": "junction.pull",
+          "when": "false"
+        },
+        {
+          "command": "junction.createPr",
+          "when": "false"
+        },
+        {
+          "command": "junction.createPrPickTarget",
           "when": "false"
         },
         {

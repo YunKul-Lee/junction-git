@@ -21,3 +21,18 @@ export function readSettings(scope?: vscode.Uri): JunctionSettings {
     bitbucketServers: cfg.get<BitbucketServer[]>('bitbucket.servers', []),
   };
 }
+
+/** Adds or replaces (by gitHost, case-insensitive) a server in the user (Global) settings only. */
+export async function saveServer(s: BitbucketServer): Promise<void> {
+  const cfg = vscode.workspace.getConfiguration('junction');
+  const current = cfg.inspect<BitbucketServer[]>('bitbucket.servers')?.globalValue ?? [];
+  const host = s.gitHost.toLowerCase();
+  const next = current.filter((x) => x.gitHost.toLowerCase() !== host);
+  const i = current.findIndex((x) => x.gitHost.toLowerCase() === host);
+  next.splice(i < 0 ? next.length : i, 0, s);
+  await cfg.update('bitbucket.servers', next, vscode.ConfigurationTarget.Global);
+}
+
+export function openServersSettings(): Thenable<unknown> {
+  return vscode.commands.executeCommand('workbench.action.openSettings', 'junction.bitbucket.servers');
+}

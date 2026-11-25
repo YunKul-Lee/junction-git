@@ -12,6 +12,8 @@ export interface UiCall {
 /** Scripted Ui: interactive methods consume `answers` in order; an empty queue answers undefined (cancel). */
 export class FakeUi implements Ui {
   readonly calls: UiCall[] = [];
+  /** Callback of the latest `info` with actions; tests call it to simulate a click. */
+  infoPick?: (index: number) => void;
   constructor(public answers: unknown[] = []) {}
 
   of(method: UiCall['method']): UiCall[] {
@@ -43,8 +45,9 @@ export class FakeUi implements Ui {
     this.calls.push({ method: 'pick', msg: title, items });
     return await this.next<T>();
   }
-  info(msg: Msg): void {
-    this.calls.push({ method: 'info', msg });
+  info(msg: Msg, actions?: Msg[], onPick?: (index: number) => void): void {
+    this.calls.push({ method: 'info', msg, actions });
+    this.infoPick = onPick;
   }
   error(msg: Msg, err?: unknown): void {
     this.calls.push({ method: 'error', msg, err });

@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { registerCommands } from './commands/register';
 import { BranchTreeProvider } from './views/branchTree';
 import { connectGitApi } from './vscode/gitApi';
+import { updateHasBitbucketContext } from './vscode/bitbucketContext';
 
 export async function activate(ctx: vscode.ExtensionContext): Promise<{ tree: BranchTreeProvider }> {
   const output = vscode.window.createOutputChannel('Junction');
@@ -21,12 +22,16 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<{ tree: Br
     tree,
     treeView,
     tree.onDidChangeFilter(onFilter),
+    tree.onDidLoadSnapshots(() => void updateHasBitbucketContext(tree)),
     vscode.window.onDidChangeWindowState((s) => {
       if (s.focused) {
         tree.refresh();
       }
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('junction.bitbucket.servers')) {
+        void updateHasBitbucketContext(tree);
+      }
       if (e.affectsConfiguration('junction')) {
         tree.refresh();
       }

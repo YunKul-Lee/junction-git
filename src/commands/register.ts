@@ -4,13 +4,14 @@ import { BranchNode, CommitNode, DiffArgs, MoreNode, StatusNode } from '../views
 import { BranchTreeProvider } from '../views/branchTree';
 import * as flows from '../flows/branchFlows';
 import * as mergeFlows from '../flows/mergeFlows';
+import { createPrFlow, PrEnv } from '../flows/prFlow';
 import { MergeResult } from '../flows/mergeFlows';
 import { FlowResult, Msg, Ui } from '../flows/ui';
 import { BranchRef } from '../git/types';
 import { fetchAll } from '../git/operations';
 import { loadSnapshot } from '../model/repoModel';
 import { GitConnection, RepoHandle } from '../vscode/gitApi';
-import { readSettings } from '../vscode/settings';
+import { openServersSettings, readSettings, saveServer } from '../vscode/settings';
 import { VscodeUi } from '../vscode/vscodeUi';
 
 export const EMPTY_SCHEME = 'junction-empty';
@@ -201,6 +202,45 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
       ui.error({ key: 'Could not list conflicted files.' }, e);
     }
   });
+  // ---- pull requests ------------------------------------------------------
+
+  const NAG_PREFIX = 'junction.prNag.';
+  const prEnv = (root: vscode.Uri): PrEnv => ({
+    servers: () => readSettings(root).bitbucketServers,
+    saveServer,
+    open: async (url) => {
+      await vscode.env.openExternal(vscode.Uri.parse(url));
+    },
+    openSettings: () => void openServersSettings(),
+    nagCount: (host) => ctx.globalState.get<number>(NAG_PREFIX + host.toLowerCase(), 0),
+    bumpNag: (host) => {
+      const k = NAG_PREFIX + host.toLowerCase();
+      void ctx.globalState.update(k, ctx.globalState.get<number>(k, 0) + 1);
+    },
+  });
+  const prFlow =
+    (pickTarget: boolean) =>
+    (node: BranchNode): Promise<void> =>
+      branchFlow({ key: 'Opening pull request…' }, async (c, b) => {
+        let target: string | undefined;
+        if (pickTarget) {
+          const names = [...new Set(c.snap.branches.filter((x) => x.kind === 'remote').map((x) => x.shortName))]
+            .filter((n) => n !== 'HEAD' && n !== b.shortName)
+            .sort();
+          target = await c.ui.pick(
+            names.map((n) => ({ label: n, value: n })),
+            { key: 'Select the target branch' },
+          );
+          if (!target) {
+            return 'cancelled';
+          }
+        }
+        return createPrFlow({ ...c, env: prEnv(node.repo.root) }, b, target);
+      })(node);
+  reg('junction.createPr', prFlow(false));
+  reg('junction.createPrPickTarget', prFlow(true));
+  reg('junction.bitbucket.changeWebUrl', () => openServersSettings());
+
   reg('junction.copyBranchName', (node: BranchNode) => vscode.env.clipboard.writeText(node.branch.name));
 
   reg('junction.copyCommitHash', (node: CommitNode) => vscode.env.clipboard.writeText(node.commit.hash));

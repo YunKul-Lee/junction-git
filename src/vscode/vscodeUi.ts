@@ -46,8 +46,14 @@ export class VscodeUi implements Ui {
     return (await vscode.window.showQuickPick(items, { title: text(title) }))?.value;
   }
 
-  info(msg: Msg): void {
-    void vscode.window.showInformationMessage(text(msg));
+  info(msg: Msg, actions?: Msg[], onPick?: (index: number) => void): void {
+    const labels = (actions ?? []).map(text);
+    void Promise.resolve(vscode.window.showInformationMessage(text(msg), ...labels)).then((picked) => {
+      const i = picked === undefined ? -1 : labels.indexOf(picked);
+      if (i >= 0) {
+        onPick?.(i);
+      }
+    });
   }
 
   error(msg: Msg, err?: unknown): void {
