@@ -278,10 +278,10 @@ export class BranchTreeProvider implements vscode.TreeDataProvider<Node>, vscode
     const out: Node[] = [];
     if (snap.state.rebase) {
       const { step, total } = snap.state.rebase;
-      out.push(new StatusNode('rebase', vscode.l10n.t('Rebase in progress ({0}/{1})', step, total), `status-rebase:${id}`));
+      out.push(new StatusNode(repo, 'rebase', vscode.l10n.t('Rebase in progress ({0}/{1})', step, total), `status-rebase:${id}`));
     }
     if (snap.state.merging) {
-      out.push(new StatusNode('merge', vscode.l10n.t('Merge in progress'), `status-merge:${id}`));
+      out.push(new StatusNode(repo, 'merge', vscode.l10n.t('Merge in progress'), `status-merge:${id}`));
     }
     if (this.compare?.root === id) {
       out.push(new CompareNode(repo, this.compare.a, this.compare.b));

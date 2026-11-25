@@ -22,7 +22,7 @@ export function createGit(
           cwd: root,
           maxBuffer: MAX_BUFFER,
           encoding: 'utf8',
-          env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...env },
+          env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...env, ...opts?.env },
           signal: opts?.signal,
         },
         (error, stdout, stderr) => {

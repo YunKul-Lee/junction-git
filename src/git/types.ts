@@ -12,7 +12,7 @@ export class GitError extends Error {
 export interface Git {
   readonly root: string;
   /** Resolves with stdout; rejects with GitError on failure. */
-  run(args: string[], opts?: { signal?: AbortSignal; input?: string }): Promise<string>;
+  run(args: string[], opts?: { signal?: AbortSignal; input?: string; env?: Record<string, string> }): Promise<string>;
   /** Cached `git --version` result. */
   version(): Promise<{ major: number; minor: number }>;
 }

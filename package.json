@@ -133,6 +133,33 @@
         "command": "junction.copyBranchName",
         "title": "%junction.cmd.copyBranchName%",
         "category": "Junction"
+      },
+      {
+        "command": "junction.mergeIntoCurrent",
+        "title": "%junction.cmd.mergeIntoCurrent%",
+        "category": "Junction"
+      },
+      {
+        "command": "junction.rebaseCurrentOnto",
+        "title": "%junction.cmd.rebaseCurrentOnto%",
+        "category": "Junction"
+      },
+      {
+        "command": "junction.continueOperation",
+        "title": "%junction.cmd.continueOperation%",
+        "category": "Junction",
+        "icon": "$(debug-continue)"
+      },
+      {
+        "command": "junction.abortOperation",
+        "title": "%junction.cmd.abortOperation%",
+        "category": "Junction",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "junction.openConflicts",
+        "title": "%junction.cmd.openConflicts%",
+        "category": "Junction"
       }
     ],
     "menus": {
@@ -233,6 +260,26 @@
           "command": "junction.copyBranchName",
           "when": "view == junction.branches && viewItem =~ /^branch-(local(-head|-merged)?|remote)$/",
           "group": "9_copy@0"
+        },
+        {
+          "command": "junction.mergeIntoCurrent",
+          "when": "view == junction.branches && viewItem =~ /^branch-(local|local-merged|remote)$/",
+          "group": "1_merge@1"
+        },
+        {
+          "command": "junction.rebaseCurrentOnto",
+          "when": "view == junction.branches && viewItem =~ /^branch-(local|local-merged|remote)$/",
+          "group": "1_merge@2"
+        },
+        {
+          "command": "junction.continueOperation",
+          "when": "view == junction.branches && viewItem == status-rebase",
+          "group": "inline@1"
+        },
+        {
+          "command": "junction.abortOperation",
+          "when": "view == junction.branches && viewItem =~ /^status-(rebase|merge)$/",
+          "group": "inline@2"
         }
       ],
       "commandPalette": [
@@ -286,6 +333,26 @@
         },
         {
           "command": "junction.copyBranchName",
+          "when": "false"
+        },
+        {
+          "command": "junction.mergeIntoCurrent",
+          "when": "false"
+        },
+        {
+          "command": "junction.rebaseCurrentOnto",
+          "when": "false"
+        },
+        {
+          "command": "junction.continueOperation",
+          "when": "false"
+        },
+        {
+          "command": "junction.abortOperation",
+          "when": "false"
+        },
+        {
+          "command": "junction.openConflicts",
           "when": "false"
         }
       ]

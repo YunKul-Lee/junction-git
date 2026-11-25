@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import { execFileSync } from 'child_process';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
@@ -123,5 +124,43 @@ suite('branch tree', function () {
     assert.strictEqual(root[0].contextValue, 'compare');
     const sides = await kids(root[0]);
     assert.deepStrictEqual(sides.map((n) => n.contextValue), ['compare-side', 'compare-side']);
+  });
+});
+
+suite('in-progress status node', function () {
+  this.timeout(60000);
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: path.join(workspace, '..', 'gitconfig'), GIT_CONFIG_NOSYSTEM: '1' };
+  const git = (...args: string[]): string => execFileSync('git', args, { cwd: workspace, env, stdio: 'pipe' }).toString().trim();
+
+  suiteSetup(async () => {
+    const ext = vscode.extensions.all.find((e) => e.packageJSON.name === 'junction')!;
+    tree = ((await ext.activate()) as { tree: BranchTreeProvider }).tree;
+    await until(() => tree.snapshot(vscode.Uri.file(workspace)));
+  });
+
+  test('a conflicted merge shows status-merge as the first root node', async () => {
+    const start = git('rev-parse', '--abbrev-ref', 'HEAD');
+    // topic and feature/search both change README.md differently.
+    git('switch', 'topic');
+    fs.writeFileSync(path.join(workspace, 'README.md'), 'topic side\n');
+    git('commit', '-am', 'topic readme');
+    try {
+      assert.throws(() => git('merge', '--no-edit', 'feature/search'));
+      await vscode.commands.executeCommand('junction.refresh');
+      const first = await until(async () => {
+        const n = (await kids())[0];
+        return n?.contextValue === 'status-merge' ? n : undefined;
+      });
+      assert.strictEqual(label(first), 'Merge in progress');
+    } finally {
+      try {
+        git('merge', '--abort');
+      } catch {
+        // not merging
+      }
+      git('reset', '--hard', 'HEAD~1');
+      git('switch', start);
+      await vscode.commands.executeCommand('junction.refresh');
+    }
   });
 });

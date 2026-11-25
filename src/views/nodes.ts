@@ -225,7 +225,12 @@ export class CompareSideNode extends vscode.TreeItem {
 }
 
 export class StatusNode extends vscode.TreeItem {
-  constructor(kind: 'rebase' | 'merge', label: string, id: string) {
+  constructor(
+    readonly repo: RepoHandle,
+    kind: 'rebase' | 'merge',
+    label: string,
+    id: string,
+  ) {
     super(label, None);
     this.id = id;
     this.contextValue = kind === 'rebase' ? 'status-rebase' : 'status-merge';

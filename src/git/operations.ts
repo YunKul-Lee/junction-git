@@ -133,3 +133,31 @@ export async function stash(git: Git, message: string): Promise<void> {
 export async function stashPop(git: Git): Promise<void> {
   await git.run(['stash', 'pop']);
 }
+
+// `ref` is fully qualified (refs/heads/x, refs/remotes/origin/x) so it can never be read as an option or a pathspec.
+
+export async function merge(git: Git, ref: string): Promise<void> {
+  await git.run(['merge', '--no-edit', ref]);
+}
+
+export async function mergeAbort(git: Git): Promise<void> {
+  await git.run(['merge', '--abort']);
+}
+
+/** Concludes a merge whose conflicts were resolved and staged, keeping the prepared message. */
+export async function mergeContinue(git: Git): Promise<void> {
+  await git.run(['merge', '--continue'], { env: { GIT_EDITOR: 'true' } });
+}
+
+export async function rebase(git: Git, onto: string): Promise<void> {
+  await git.run(['rebase', onto]);
+}
+
+/** GIT_EDITOR=true keeps git from opening an editor for the commit message. */
+export async function rebaseContinue(git: Git): Promise<void> {
+  await git.run(['rebase', '--continue'], { env: { GIT_EDITOR: 'true' } });
+}
+
+export async function rebaseAbort(git: Git): Promise<void> {
+  await git.run(['rebase', '--abort']);
+}

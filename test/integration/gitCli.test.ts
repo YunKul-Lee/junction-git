@@ -67,3 +67,18 @@ describe('gitCli', () => {
     expect(await repo.sh('remote')).toBe('origin\n');
   });
 });
+
+describe('gitCli per-call env', () => {
+  it('merges opts.env over the instance env', async () => {
+    const repo = await makeRepo();
+    try {
+      const git = createGit('git', repo.dir, undefined, { JUNCTION_A: 'instance', JUNCTION_B: 'instance' });
+      const out = await git.run(['var', 'GIT_EDITOR'], { env: { GIT_EDITOR: 'true' } });
+      expect(out.trim()).toBe('true');
+      const sh = await git.run(['-c', 'alias.e=!echo $JUNCTION_A-$JUNCTION_B', 'e'], { env: { JUNCTION_B: 'call' } });
+      expect(sh.trim()).toBe('instance-call');
+    } finally {
+      await repo.cleanup();
+    }
+  });
+});

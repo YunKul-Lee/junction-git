@@ -1,8 +1,10 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { BranchNode, CommitNode, DiffArgs, MoreNode } from '../views/nodes';
+import { BranchNode, CommitNode, DiffArgs, MoreNode, StatusNode } from '../views/nodes';
 import { BranchTreeProvider } from '../views/branchTree';
 import * as flows from '../flows/branchFlows';
+import * as mergeFlows from '../flows/mergeFlows';
+import { MergeResult } from '../flows/mergeFlows';
 import { FlowResult, Msg, Ui } from '../flows/ui';
 import { BranchRef } from '../git/types';
 import { fetchAll } from '../git/operations';
@@ -69,17 +71,32 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
 
   // ---- branch operations --------------------------------------------------
 
+  /** Tells the user the operation stopped on conflicts; deliberately not awaited so the tree refreshes at once. */
+  const offerConflictHandoff = async (repo: RepoHandle): Promise<void> => {
+    const open = vscode.l10n.t('Open Conflicts');
+    const abort = vscode.l10n.t('Abort');
+    const picked = await vscode.window.showWarningMessage(vscode.l10n.t('Conflicts found.'), open, abort);
+    if (picked === open) {
+      await vscode.commands.executeCommand('junction.openConflicts', { repo });
+    } else if (picked === abort) {
+      await vscode.commands.executeCommand('junction.abortOperation', { repo });
+    }
+  };
+
   /** Runs a flow against a fresh snapshot, then refreshes the repo whatever the outcome. */
   const runFlow = async (
     repo: RepoHandle,
     title: Msg,
-    flow: (c: { git: RepoHandle['git']; ui: Ui; snap: Awaited<ReturnType<typeof loadSnapshot>> }) => Promise<FlowResult>,
+    flow: (c: { git: RepoHandle['git']; ui: Ui; snap: Awaited<ReturnType<typeof loadSnapshot>> }) => Promise<FlowResult | MergeResult>,
   ): Promise<void> => {
     try {
-      await ui.progress(title, async () => {
+      const result = await ui.progress(title, async () => {
         const snap = await loadSnapshot(repo.git, { baseBranch: readSettings(repo.root).baseBranch });
-        await flow({ git: repo.git, ui, snap });
+        return flow({ git: repo.git, ui, snap });
       });
+      if (result === 'conflicts') {
+        void offerConflictHandoff(repo);
+      }
     } catch (e) {
       ui.error({ key: 'Unexpected error: {0}', args: [e instanceof Error ? e.message : String(e)] }, e);
     } finally {
@@ -140,6 +157,50 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
       }
     }),
   );
+  reg(
+    'junction.mergeIntoCurrent',
+    (node: BranchNode) =>
+      branchFlow({ key: 'Merging…' }, (c, b) =>
+        mergeFlows.mergeIntoCurrentFlow(c, b, { confirm: readSettings(node.repo.root).confirmMerge }),
+      )(node),
+  );
+  reg(
+    'junction.rebaseCurrentOnto',
+    (node: BranchNode) =>
+      branchFlow({ key: 'Rebasing…' }, (c, b) =>
+        mergeFlows.rebaseCurrentOntoFlow(c, b, { confirm: readSettings(node.repo.root).confirmMerge }),
+      )(node),
+  );
+  /** Status-node buttons pass the node; the conflict notification passes `{ repo }`. */
+  const repoOf = async (node?: { repo: RepoHandle }): Promise<RepoHandle | undefined> => node?.repo ?? pickRepo();
+  reg('junction.continueOperation', async (node?: StatusNode) => {
+    const repo = await repoOf(node);
+    if (repo) {
+      await runFlow(repo, { key: 'Continuing…' }, mergeFlows.continueFlow);
+    }
+  });
+  reg('junction.abortOperation', async (node?: StatusNode) => {
+    const repo = await repoOf(node);
+    if (repo) {
+      await runFlow(repo, { key: 'Aborting…' }, mergeFlows.abortFlow);
+    }
+  });
+  reg('junction.openConflicts', async (node?: StatusNode) => {
+    const repo = await repoOf(node);
+    if (!repo) {
+      return;
+    }
+    await vscode.commands.executeCommand('workbench.view.scm');
+    try {
+      const out = await repo.git.run(['diff', '--name-only', '--diff-filter=U']);
+      const first = out.split('\n').map((l) => l.trim()).find(Boolean);
+      if (first) {
+        await vscode.commands.executeCommand('vscode.open', vscode.Uri.joinPath(repo.root, first));
+      }
+    } catch (e) {
+      ui.error({ key: 'Could not list conflicted files.' }, e);
+    }
+  });
   reg('junction.copyBranchName', (node: BranchNode) => vscode.env.clipboard.writeText(node.branch.name));
 
   reg('junction.copyCommitHash', (node: CommitNode) => vscode.env.clipboard.writeText(node.commit.hash));
