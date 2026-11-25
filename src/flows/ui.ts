@@ -16,3 +16,9 @@ export interface Ui {
   error(msg: Msg, err?: unknown): void;
   progress<T>(title: Msg, fn: (signal: AbortSignal) => Promise<T>): Promise<T>;
 }
+
+/** The most informative stderr line: the first `error:`, `fatal:` or `!` line, else the first line. */
+export function errorSummary(stderr: string): string {
+  const lines = stderr.split('\n').map((l) => l.trim()).filter(Boolean);
+  return lines.find((l) => /^(error:|fatal:|!)/.test(l)) ?? lines[0] ?? '';
+}

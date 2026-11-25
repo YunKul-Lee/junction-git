@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Msg, Ui } from '../flows/ui';
+import { errorSummary, Msg, Ui } from '../flows/ui';
 import { GitError } from '../git/types';
 
 const text = (m: Msg): string => vscode.l10n.t(m.key, ...(m.args ?? []));
@@ -53,7 +53,7 @@ export class VscodeUi implements Ui {
   error(msg: Msg, err?: unknown): void {
     let message = text(msg);
     if (err instanceof GitError) {
-      const first = err.stderr.trim().split('\n')[0];
+      const first = errorSummary(err.stderr);
       if (first) {
         message = `${message} ${first}`;
       }

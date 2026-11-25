@@ -21,6 +21,19 @@ export async function renameBranch(git: Git, oldName: string, newName: string): 
   await git.run(['branch', '-m', '--', oldName, newName]);
 }
 
+export async function unsetUpstream(git: Git, name: string): Promise<void> {
+  await git.run(['branch', '--unset-upstream', '--', name]);
+}
+
+/** Sha of the newest stash, or '' when there is none. */
+export async function stashTip(git: Git): Promise<string> {
+  try {
+    return (await git.run(['rev-parse', '-q', '--verify', 'refs/stash'])).trim();
+  } catch {
+    return '';
+  }
+}
+
 /** Without `force` git refuses to delete a branch that is not fully merged. */
 export async function deleteLocal(git: Git, name: string, force: boolean): Promise<void> {
   await git.run(['branch', force ? '-D' : '-d', '--', name]);
@@ -38,34 +51,58 @@ async function configValue(git: Git, key: string): Promise<string | undefined> {
   }
 }
 
+/** Where `branch` is pushed: its upstream remote and ref, or `setUpstreamTo` under the same name. */
+export async function pushTarget(
+  git: Git,
+  branch: string,
+  setUpstreamTo?: string,
+): Promise<{ remote: string; dest: string }> {
+  if (setUpstreamTo) {
+    return { remote: setUpstreamTo, dest: `refs/heads/${branch}` };
+  }
+  const remote = await configValue(git, `branch.${branch}.remote`);
+  if (!remote) {
+    throw new Error(`Branch ${branch} has no upstream remote`);
+  }
+  return { remote, dest: (await configValue(git, `branch.${branch}.merge`)) ?? `refs/heads/${branch}` };
+}
+
+export async function fetchRemote(git: Git, remote: string): Promise<void> {
+  await git.run(['fetch', '--', remote]);
+}
+
+/** Sha of the remote-tracking ref for `dest` on `remote`, or undefined when it does not exist. */
+export async function remoteTip(git: Git, remote: string, dest: string): Promise<string | undefined> {
+  try {
+    const out = await git.run(['rev-parse', '-q', '--verify', `refs/remotes/${remote}/${dest.replace(/^refs\/heads\//, '')}`]);
+    return out.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Number of commits reachable from `sha` but not from `branch`. */
+export async function countNotIn(git: Git, sha: string, branch: string): Promise<number> {
+  const out = await git.run(['rev-list', '--count', sha, '--not', `refs/heads/${branch}`]);
+  return Number(out.trim());
+}
+
 /**
- * Pushes `branch`. With `setUpstreamTo` it is pushed to that remote under the same name and tracked.
- * Otherwise it goes to its configured upstream. `forceWithLease` first fetches the remote so the lease
- * is taken against the current remote state; it still refuses if the remote moves afterwards.
+ * Pushes `branch`, to `setUpstreamTo` (and tracks it) or else its configured upstream.
+ * `forceWithLease.expect` is the remote sha the user confirmed overwriting: the push fails if the remote moved.
  */
 export async function push(
   git: Git,
   branch: string,
-  opts: { setUpstreamTo?: string; forceWithLease?: boolean },
+  opts: { setUpstreamTo?: string; forceWithLease?: { expect: string } },
 ): Promise<void> {
-  let remote = opts.setUpstreamTo;
-  let dest = `refs/heads/${branch}`;
-  if (!remote) {
-    remote = await configValue(git, `branch.${branch}.remote`);
-    dest = (await configValue(git, `branch.${branch}.merge`)) ?? dest;
-    if (!remote) {
-      throw new Error(`Branch ${branch} has no upstream remote`);
-    }
-  }
-  if (opts.forceWithLease) {
-    await git.run(['fetch', '--', remote]);
-  }
+  const { remote, dest } = await pushTarget(git, branch, opts.setUpstreamTo);
   const args = ['push'];
   if (opts.setUpstreamTo) {
     args.push('--set-upstream');
   }
   if (opts.forceWithLease) {
-    args.push('--force-with-lease');
+    args.push(`--force-with-lease=${dest}:${opts.forceWithLease.expect}`);
   }
   args.push('--', remote, `refs/heads/${branch}:${dest}`);
   await git.run(args);

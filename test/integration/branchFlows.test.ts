@@ -53,7 +53,7 @@ describe('branch flows', () => {
     } else {
       await c('checkout', branch);
     }
-    await fs.writeFile(path.join(other, 'other.txt'), `${branch}\n`);
+    await fs.writeFile(path.join(other, 'other.txt'), `${branch} ${Math.random()}\n`);
     await c('add', 'other.txt');
     await c('commit', '-m', 'other');
     await c('push', 'origin', branch);
@@ -99,6 +99,22 @@ describe('branch flows', () => {
       expect((await repo.sh('stash', 'list')).trim().split('\n')).toHaveLength(1);
       expect((await repo.sh('status', '--porcelain')).trim()).toBe('');
       expect(ui.of('info')).toHaveLength(1);
+    });
+
+    it('does not pop an unrelated older stash when nothing was stashed and the switch fails', async () => {
+      repo = await makeRepo();
+      const file = path.join(repo.dir, 'README.md');
+      await fs.writeFile(file, 'old\n');
+      await repo.sh('stash', 'push', '-m', 'older');
+      await repo.sh('branch', 'feature/a');
+      await fs.writeFile(file, 'dirty\n');
+      const ui = new FakeUi([0]);
+      const c = await ctx(ui); // snapshot sees a dirty tree
+      await repo.sh('checkout', '--', 'README.md'); // ...which is clean by the time we stash
+      await repo.sh('branch', '-D', 'feature/a'); // so the switch fails
+      expect(await checkoutFlow(c, ref(c.snap, 'feature/a'))).toBe('failed');
+      expect(await repo.sh('stash', 'list')).toContain('older');
+      expect(await fs.readFile(file, 'utf8')).toBe('initial\n');
     });
 
     it('remote without local creates a tracking local branch', async () => {
@@ -187,6 +203,7 @@ describe('branch flows', () => {
       expect(await renameFlow(c, ref(c.snap, 'develop'))).toBe('done');
       expect(await hasLocal('trunk')).toBe(true);
       expect(await hasLocal('develop')).toBe(false);
+      await expect(repo.sh('rev-parse', '--abbrev-ref', 'trunk@{upstream}')).rejects.toThrow();
       expect(ui.of('info').map((i) => i.msg.key)).toEqual(['Remote branch was not renamed.']);
     });
   });
@@ -285,6 +302,23 @@ describe('branch flows', () => {
       expect(await pushFlow(c, ref(c.snap, 'feature/p'))).toBe('done');
       expect((await lsRemote('feature/p')).split('\t')[0]).toBe(await rev('feature/p'));
       expect(ui.of('confirm')[0].opts?.modal).toBe(true);
+      expect(ui.of('confirm')[0].opts?.detail?.args).toEqual(['origin/feature/p', 1]);
+    });
+
+    it('fails and keeps the remote when it moves after the confirmation', async () => {
+      repo = await makeRepo();
+      await rejectedSetup();
+      let newer = '';
+      const ui = new FakeUi([
+        async () => {
+          newer = await pushFromOtherClone('feature/p');
+          return 0;
+        },
+      ]);
+      const c = await ctx(ui);
+      expect(await pushFlow(c, ref(c.snap, 'feature/p'))).toBe('failed');
+      expect(ui.of('error')).toHaveLength(1);
+      expect((await lsRemote('feature/p')).split('\t')[0]).toBe(newer);
     });
 
     it('rejected push + cancel leaves the remote alone', async () => {

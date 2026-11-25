@@ -18,29 +18,30 @@ export class FakeUi implements Ui {
     return this.calls.filter((c) => c.method === method);
   }
 
-  private next<T>(): T | undefined {
-    return this.answers.shift() as T | undefined;
+  private async next<T>(): Promise<T | undefined> {
+    const a = this.answers.shift();
+    return (typeof a === 'function' ? (a as () => unknown)() : a) as T | undefined;
   }
 
   async confirm(msg: Msg, actions: Msg[], opts?: { modal?: boolean; detail?: Msg }): Promise<number | undefined> {
     this.calls.push({ method: 'confirm', msg, actions, opts });
-    return this.next<number>();
+    return await this.next<number>();
   }
   async input(
     prompt: Msg,
     opts?: { value?: string; validate?: (v: string) => Msg | undefined },
   ): Promise<string | undefined> {
     this.calls.push({ method: 'input', msg: prompt, opts });
-    return this.next<string>();
+    return await this.next<string>();
   }
   async pickMany<T>(items: { label: string; picked: boolean; value: T }[], title: Msg): Promise<T[] | undefined> {
     this.calls.push({ method: 'pickMany', msg: title, items });
-    const a = this.next<'all' | T[]>();
+    const a = await this.next<'all' | T[]>();
     return a === 'all' ? items.map((i) => i.value) : (a as T[] | undefined);
   }
   async pick<T>(items: { label: string; description?: string; value: T }[], title: Msg): Promise<T | undefined> {
     this.calls.push({ method: 'pick', msg: title, items });
-    return this.next<T>();
+    return await this.next<T>();
   }
   info(msg: Msg): void {
     this.calls.push({ method: 'info', msg });

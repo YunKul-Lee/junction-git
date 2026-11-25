@@ -105,8 +105,10 @@ export async function checkoutFlow(c: FlowCtx, ref: BranchRef): Promise<FlowResu
         return 'cancelled';
       }
       if (choice === 0) {
+        const before = await ops.stashTip(git);
         await ops.stash(git, `junction: auto-stash before switching to ${ref.shortName}`);
-        stashed = true;
+        // git exits 0 with "No local changes to save" when nothing was stashed.
+        stashed = (await ops.stashTip(git)) !== before;
       }
     }
     await switchNow();
@@ -177,6 +179,13 @@ export async function renameFlow(c: FlowCtx, b: BranchRef): Promise<FlowResult> 
     return 'failed';
   }
   if (b.upstream) {
+    try {
+      // Otherwise the next push would land on the old remote branch.
+      await ops.unsetUpstream(git, name);
+    } catch (e) {
+      ui.error({ key: 'Could not rename branch {0}.', args: [b.name] }, e);
+      return 'failed';
+    }
     ui.info({ key: 'Remote branch was not renamed.' });
   }
   return 'done';
@@ -258,16 +267,32 @@ export async function pushFlow(c: FlowCtx, b: BranchRef): Promise<FlowResult> {
       return 'failed';
     }
   }
-  const choice = await ui.confirm(
-    { key: 'Push was rejected. Force push with lease?' },
-    [{ key: 'Force Push (with lease)' }],
-    { modal: true },
-  );
-  if (choice === undefined) {
-    return 'cancelled';
-  }
   try {
-    await ops.push(git, b.name, { setUpstreamTo, forceWithLease: true });
+    // Look at the remote as it is now: the user confirms against exactly this state.
+    const { remote, dest } = await ops.pushTarget(git, b.name, setUpstreamTo);
+    await ops.fetchRemote(git, remote);
+    const tip = await ops.remoteTip(git, remote, dest);
+    if (!tip) {
+      ui.error({ key: 'Could not push {0}.', args: [b.name] });
+      return 'failed';
+    }
+    const lost = await ops.countNotIn(git, tip, b.name);
+    const detail: Msg =
+      lost > 0
+        ? {
+            key: '{0} has {1} commits that are not in your branch. They will be discarded from the remote.',
+            args: [`${remote}/${dest.replace(/^refs\/heads\//, '')}`, lost],
+          }
+        : { key: 'The remote branch will be overwritten.' };
+    const choice = await ui.confirm(
+      { key: 'Push was rejected. Force push with lease?' },
+      [{ key: 'Force Push (with lease)' }],
+      { modal: true, detail },
+    );
+    if (choice === undefined) {
+      return 'cancelled';
+    }
+    await ops.push(git, b.name, { setUpstreamTo, forceWithLease: { expect: tip } });
     return 'done';
   } catch (e) {
     ui.error({ key: 'Could not push {0}.', args: [b.name] }, e);
