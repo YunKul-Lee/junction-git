@@ -1,14 +1,17 @@
 import * as vscode from 'vscode';
 
 /**
- * Converts a URL to a Uri that serializes back to exactly `url`.
+ * Opens `url` in the browser with its text untouched.
  *
- * `Uri.parse(url).toString()` re-encodes the query (`create&a=b` becomes `create%26a%3Db`), which breaks
- * Bitbucket's query parsing, and `openExternal` serializes with `toString()`. The parsed Uri keeps its
- * components (so `openExternal` can still route the scheme) but its serialization is pinned to the input.
+ * A `Uri` is re-serialized on the way to the main thread (query `&`/`=` get percent-encoded, and the
+ * opener later decodes `%2F`), which breaks Bitbucket's query parsing. The extension-host `openUri`
+ * accepts a string and forwards it verbatim (internal VS Code behavior, verified in 1.148), so the
+ * string is passed through even though the public typings only declare `Uri`.
+ * `open` is injectable so tests can see exactly what is handed over.
  */
-export function toExternalUri(url: string): vscode.Uri {
-  const uri = vscode.Uri.parse(url, true);
-  Object.defineProperty(uri, 'toString', { value: () => url });
-  return uri;
+export function openExternalUrl(
+  url: string,
+  open: (target: vscode.Uri) => Thenable<boolean> = (t) => vscode.env.openExternal(t),
+): Thenable<boolean> {
+  return open(url as unknown as vscode.Uri);
 }
