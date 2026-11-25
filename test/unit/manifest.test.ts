@@ -23,3 +23,21 @@ describe('package.json pull request contributions', () => {
     expect(text).not.toMatch(/junction\.bitbucket\.|junction\.hasBitbucket/);
   });
 });
+
+describe('docs', () => {
+  const readme = readFileSync(join(__dirname, '../../README.md'), 'utf8');
+  const changelog = readFileSync(join(__dirname, '../../CHANGELOG.md'), 'utf8');
+
+  it('documents the generic setting and no Bitbucket-only names', () => {
+    expect(readme).toContain('junction.pullRequest.servers');
+    expect(readme).not.toMatch(/junction\.bitbucket\.|"type": "(cloud|datacenter)"/);
+    for (const t of ['bitbucket-cloud', 'bitbucket-datacenter', 'github', 'gitlab', 'none']) {
+      expect(readme).toContain(`"${t}"`);
+    }
+  });
+
+  it('matches the package version in the changelog', () => {
+    expect(pkg.version).toBe('0.2.0');
+    expect(changelog).toContain(`## ${pkg.version}`);
+  });
+});

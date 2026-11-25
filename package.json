@@ -2,7 +2,7 @@
   "name": "junction",
   "displayName": "Junction for Git",
   "description": "Branch sidebar for Git: browse, switch and manage branches and pull requests.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "TODO-publisher",
   "license": "MIT",
   "engines": {
