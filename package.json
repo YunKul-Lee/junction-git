@@ -74,10 +74,74 @@
         "command": "junction.copyCommitMessage",
         "title": "%junction.cmd.copyCommitMessage%",
         "category": "Junction"
+      },
+      {
+        "command": "junction.checkout",
+        "title": "%junction.cmd.checkout%",
+        "category": "Junction",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "junction.newBranch",
+        "title": "%junction.cmd.newBranch%",
+        "category": "Junction"
+      },
+      {
+        "command": "junction.rename",
+        "title": "%junction.cmd.rename%",
+        "category": "Junction"
+      },
+      {
+        "command": "junction.delete",
+        "title": "%junction.cmd.delete%",
+        "category": "Junction"
+      },
+      {
+        "command": "junction.deleteRemote",
+        "title": "%junction.cmd.deleteRemote%",
+        "category": "Junction"
+      },
+      {
+        "command": "junction.push",
+        "title": "%junction.cmd.push%",
+        "category": "Junction"
+      },
+      {
+        "command": "junction.pull",
+        "title": "%junction.cmd.pull%",
+        "category": "Junction"
+      },
+      {
+        "command": "junction.fetch",
+        "title": "%junction.cmd.fetch%",
+        "category": "Junction",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "junction.sync",
+        "title": "%junction.cmd.sync%",
+        "category": "Junction",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "junction.cleanupMerged",
+        "title": "%junction.cmd.cleanupMerged%",
+        "category": "Junction",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "junction.copyBranchName",
+        "title": "%junction.cmd.copyBranchName%",
+        "category": "Junction"
       }
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "junction.fetch",
+          "when": "view == junction.branches",
+          "group": "1_actions@1"
+        },
         {
           "command": "junction.filter",
           "when": "view == junction.branches",
@@ -87,6 +151,16 @@
           "command": "junction.clearFilter",
           "when": "view == junction.branches && junction.filterActive",
           "group": "navigation@2"
+        },
+        {
+          "command": "junction.sync",
+          "when": "view == junction.branches",
+          "group": "navigation@3"
+        },
+        {
+          "command": "junction.cleanupMerged",
+          "when": "view == junction.branches",
+          "group": "navigation@4"
         },
         {
           "command": "junction.refresh",
@@ -114,6 +188,51 @@
           "command": "junction.copyCommitMessage",
           "when": "view == junction.branches && viewItem == commit",
           "group": "9_copy@2"
+        },
+        {
+          "command": "junction.checkout",
+          "when": "view == junction.branches && viewItem =~ /^branch-(local|local-merged)$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "junction.checkout",
+          "when": "view == junction.branches && viewItem =~ /^branch-(local|local-merged|remote)$/",
+          "group": "0_switch@1"
+        },
+        {
+          "command": "junction.newBranch",
+          "when": "view == junction.branches && viewItem =~ /^branch-(local(-head|-merged)?|remote)$/",
+          "group": "0_switch@2"
+        },
+        {
+          "command": "junction.push",
+          "when": "view == junction.branches && viewItem =~ /^branch-local(-head|-merged)?$/",
+          "group": "2_sync@1"
+        },
+        {
+          "command": "junction.pull",
+          "when": "view == junction.branches && viewItem =~ /^branch-local(-head|-merged)?$/",
+          "group": "2_sync@2"
+        },
+        {
+          "command": "junction.rename",
+          "when": "view == junction.branches && viewItem =~ /^branch-local(-head|-merged)?$/",
+          "group": "3_manage@1"
+        },
+        {
+          "command": "junction.delete",
+          "when": "view == junction.branches && viewItem =~ /^branch-local(-head|-merged)?$/",
+          "group": "3_manage@2"
+        },
+        {
+          "command": "junction.deleteRemote",
+          "when": "view == junction.branches && viewItem == branch-remote",
+          "group": "3_manage@3"
+        },
+        {
+          "command": "junction.copyBranchName",
+          "when": "view == junction.branches && viewItem =~ /^branch-(local(-head|-merged)?|remote)$/",
+          "group": "9_copy@0"
         }
       ],
       "commandPalette": [
@@ -136,6 +255,38 @@
         {
           "command": "junction.clearFilter",
           "when": "junction.filterActive"
+        },
+        {
+          "command": "junction.checkout",
+          "when": "false"
+        },
+        {
+          "command": "junction.newBranch",
+          "when": "false"
+        },
+        {
+          "command": "junction.rename",
+          "when": "false"
+        },
+        {
+          "command": "junction.delete",
+          "when": "false"
+        },
+        {
+          "command": "junction.deleteRemote",
+          "when": "false"
+        },
+        {
+          "command": "junction.push",
+          "when": "false"
+        },
+        {
+          "command": "junction.pull",
+          "when": "false"
+        },
+        {
+          "command": "junction.copyBranchName",
+          "when": "false"
         }
       ]
     },

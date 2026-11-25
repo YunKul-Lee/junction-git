@@ -2,17 +2,26 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { BranchNode, CommitNode, DiffArgs, MoreNode } from '../views/nodes';
 import { BranchTreeProvider } from '../views/branchTree';
-import { GitConnection } from '../vscode/gitApi';
+import * as flows from '../flows/branchFlows';
+import { FlowResult, Msg, Ui } from '../flows/ui';
+import { BranchRef } from '../git/types';
+import { fetchAll } from '../git/operations';
+import { loadSnapshot } from '../model/repoModel';
+import { GitConnection, RepoHandle } from '../vscode/gitApi';
+import { readSettings } from '../vscode/settings';
+import { VscodeUi } from '../vscode/vscodeUi';
 
 export const EMPTY_SCHEME = 'junction-empty';
 
 export interface CommandDeps {
   tree: BranchTreeProvider;
   conn: GitConnection;
+  output: vscode.OutputChannel;
 }
 
 export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps): void {
   const { tree, conn } = deps;
+  const ui = new VscodeUi(deps.output);
   const reg = (id: string, fn: (...args: never[]) => unknown): void => {
     ctx.subscriptions.push(vscode.commands.registerCommand(id, fn as (...args: unknown[]) => unknown));
   };
@@ -57,6 +66,81 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
     tree.showCompare(node.repo.root, current, node.branch.name);
   });
   reg('junction.closeCompare', () => tree.clearCompare());
+
+  // ---- branch operations --------------------------------------------------
+
+  /** Runs a flow against a fresh snapshot, then refreshes the repo whatever the outcome. */
+  const runFlow = async (
+    repo: RepoHandle,
+    title: Msg,
+    flow: (c: { git: RepoHandle['git']; ui: Ui; snap: Awaited<ReturnType<typeof loadSnapshot>> }) => Promise<FlowResult>,
+  ): Promise<void> => {
+    try {
+      await ui.progress(title, async () => {
+        const snap = await loadSnapshot(repo.git, { baseBranch: readSettings(repo.root).baseBranch });
+        await flow({ git: repo.git, ui, snap });
+      });
+    } catch (e) {
+      ui.error({ key: 'Unexpected error: {0}', args: [e instanceof Error ? e.message : String(e)] }, e);
+    } finally {
+      tree.refresh(repo.root);
+    }
+  };
+
+  /** Re-resolves the node's branch in the fresh snapshot so flows never act on stale state. */
+  const branchFlow =
+    (title: Msg, flow: (c: Parameters<Parameters<typeof runFlow>[2]>[0], b: BranchRef) => Promise<FlowResult>) =>
+    (node: BranchNode): Promise<void> =>
+      runFlow(node.repo, title, (c) => {
+        const b = c.snap.branches.find((x) => x.kind === node.branch.kind && x.name === node.branch.name);
+        if (!b) {
+          ui.error({ key: 'Branch {0} no longer exists.', args: [node.branch.name] });
+          return Promise.resolve('failed');
+        }
+        return flow(c, b);
+      });
+
+  const pickRepo = async (): Promise<RepoHandle | undefined> => {
+    const repos = conn.repos();
+    if (repos.length <= 1) {
+      return repos[0];
+    }
+    return ui.pick(
+      repos.map((r) => ({ label: path.basename(r.root.fsPath), description: r.root.fsPath, value: r })),
+      { key: 'Select a repository' },
+    );
+  };
+  const repoFlow =
+    (title: Msg, flow: (c: Parameters<Parameters<typeof runFlow>[2]>[0]) => Promise<FlowResult>) =>
+    async (): Promise<void> => {
+      const repo = await pickRepo();
+      if (repo) {
+        await runFlow(repo, title, flow);
+      }
+    };
+
+  reg('junction.checkout', branchFlow({ key: 'Switching branch…' }, flows.checkoutFlow));
+  reg('junction.newBranch', branchFlow({ key: 'Creating branch…' }, flows.newBranchFlow));
+  reg('junction.rename', branchFlow({ key: 'Renaming branch…' }, flows.renameFlow));
+  reg('junction.delete', branchFlow({ key: 'Deleting branch…' }, flows.deleteLocalFlow));
+  reg('junction.deleteRemote', branchFlow({ key: 'Deleting remote branch…' }, flows.deleteRemoteFlow));
+  reg('junction.push', branchFlow({ key: 'Pushing…' }, flows.pushFlow));
+  reg('junction.pull', branchFlow({ key: 'Pulling…' }, flows.pullFlow));
+  reg('junction.sync', repoFlow({ key: 'Syncing…' }, flows.syncFlow));
+  reg('junction.cleanupMerged', repoFlow({ key: 'Cleaning up merged branches…' }, flows.cleanupMergedFlow));
+  reg(
+    'junction.fetch',
+    repoFlow({ key: 'Fetching…' }, async (c) => {
+      try {
+        await fetchAll(c.git);
+        return 'done';
+      } catch (e) {
+        c.ui.error({ key: 'Fetch failed.' }, e);
+        return 'failed';
+      }
+    }),
+  );
+  reg('junction.copyBranchName', (node: BranchNode) => vscode.env.clipboard.writeText(node.branch.name));
 
   reg('junction.copyCommitHash', (node: CommitNode) => vscode.env.clipboard.writeText(node.commit.hash));
   reg('junction.copyCommitMessage', (node: CommitNode) => vscode.env.clipboard.writeText(node.commit.subject));

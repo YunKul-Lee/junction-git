@@ -32,7 +32,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<{ tree: Br
       }
     }),
   );
-  registerCommands(ctx, { tree, conn });
+  registerCommands(ctx, { tree, conn, output });
   return { tree };
 }
 

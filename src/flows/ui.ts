@@ -1,0 +1,18 @@
+/** A user-facing message. `key` is the English source string, also used as the l10n key. */
+export type Msg = { key: string; args?: (string | number)[] };
+
+export type FlowResult = 'done' | 'cancelled' | 'failed';
+
+export interface Ui {
+  /** Resolves with the chosen action index, or undefined when dismissed. */
+  confirm(msg: Msg, actions: Msg[], opts?: { modal?: boolean; detail?: Msg }): Promise<number | undefined>;
+  input(
+    prompt: Msg,
+    opts?: { value?: string; validate?: (v: string) => Msg | undefined },
+  ): Promise<string | undefined>;
+  pickMany<T>(items: { label: string; picked: boolean; value: T }[], title: Msg): Promise<T[] | undefined>;
+  pick<T>(items: { label: string; description?: string; value: T }[], title: Msg): Promise<T | undefined>;
+  info(msg: Msg): void;
+  error(msg: Msg, err?: unknown): void;
+  progress<T>(title: Msg, fn: (signal: AbortSignal) => Promise<T>): Promise<T>;
+}
