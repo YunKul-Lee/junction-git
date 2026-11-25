@@ -1,0 +1,16 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": { "ecmaVersion": 2022, "sourceType": "module" },
+  "plugins": ["@typescript-eslint"],
+  "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
+  "env": { "node": true, "es2022": true },
+  "overrides": [
+    {
+      "files": ["src/git/**", "src/model/**", "src/pr/**", "src/flows/**"],
+      "rules": {
+        "no-restricted-imports": ["error", { "paths": [{ "name": "vscode", "message": "These modules must stay free of the vscode API." }] }]
+      }
+    }
+  ]
+}

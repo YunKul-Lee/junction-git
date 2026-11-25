@@ -1,0 +1,63 @@
+{
+  "name": "junction",
+  "displayName": "Junction for Git",
+  "description": "Branch sidebar for Git: browse, switch and manage branches and pull requests.",
+  "version": "0.0.1",
+  "publisher": "TODO-publisher",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "SCM Providers"
+  ],
+  "main": "./dist/extension.js",
+  "l10n": "./l10n",
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "junction",
+          "title": "Junction",
+          "icon": "media/junction.svg"
+        }
+      ]
+    },
+    "views": {
+      "junction": [
+        {
+          "id": "junction.branches",
+          "name": "Branches"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "compile:test": "tsc -p tsconfig.test.json",
+    "test:unit": "vitest run",
+    "test:ext": "npm run build && npm run compile:test && vscode-test",
+    "lint": "eslint src test --ext ts",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.19.43",
+    "@types/vscode": "^1.90.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.1.1",
+    "esbuild": "^0.28.2",
+    "eslint": "^8.57.1",
+    "mocha": "^12.0.3",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}
