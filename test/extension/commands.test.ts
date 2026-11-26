@@ -62,3 +62,10 @@ suite('branch commands', function () {
     });
   });
 });
+
+suite('merge editor', () => {
+  test('git.openMergeEditor is available', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.strictEqual(commands.includes('git.openMergeEditor'), true);
+  });
+});

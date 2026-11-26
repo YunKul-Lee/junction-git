@@ -6,15 +6,17 @@ import * as flows from '../flows/branchFlows';
 import * as mergeFlows from '../flows/mergeFlows';
 import { createPrFlow, PrEnv } from '../flows/prFlow';
 import { MergeResult } from '../flows/mergeFlows';
-import { memoryPendingStore } from '../flows/pendingPush';
-import { PushCtx } from '../flows/pushFlows';
+import { ConflictCtx, conflictListFlow } from '../flows/conflictFlows';
+import { Notice } from '../flows/conflictWatch';
+import { finishMergeFlow, resumePendingPushFlow } from '../flows/pushFlows';
 import { FlowResult, Msg } from '../flows/ui';
 import { BranchRef } from '../git/types';
 import { fetchAll } from '../git/operations';
-import { repoState } from '../git/queries';
 import { loadSnapshot } from '../model/repoModel';
 import { quickCheckoutOrder } from '../model/tree';
 import { GitConnection, RepoHandle } from '../vscode/gitApi';
+import { watchConflicts } from '../vscode/conflictWatcher';
+import { workspacePendingStore } from '../vscode/pendingPushStore';
 import { openServersSettings, readSettings, saveServer } from '../vscode/settings';
 import { openExternalUrl } from '../vscode/externalUri';
 import { VscodeUi } from '../vscode/vscodeUi';
@@ -77,19 +79,19 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
 
   // ---- branch operations --------------------------------------------------
 
-  /** Tells the user the operation stopped on conflicts; deliberately not awaited so the tree refreshes at once. */
-  const offerConflictHandoff = async (repo: RepoHandle, rebasing: boolean): Promise<void> => {
-    const open = vscode.l10n.t('Open Conflicts');
-    const cont = vscode.l10n.t('Continue');
-    const abort = vscode.l10n.t('Abort');
-    const buttons = rebasing ? [open, cont, abort] : [open, abort];
-    const picked = await vscode.window.showWarningMessage(vscode.l10n.t('Conflicts found.'), ...buttons);
-    if (picked === open) {
-      await vscode.commands.executeCommand('junction.openConflicts', { repo });
-    } else if (picked === cont && rebasing) {
-      await vscode.commands.executeCommand('junction.continueOperation', { repo });
-    } else if (picked === abort) {
-      await vscode.commands.executeCommand('junction.abortOperation', { repo });
+  /** Opens a conflicted file in the Merge Editor, else in a plain editor. Never rejects. */
+  const openMergeEditor = async (root: vscode.Uri, file: string): Promise<void> => {
+    const uri = vscode.Uri.joinPath(root, file);
+    try {
+      await vscode.commands.executeCommand('git.openMergeEditor', uri);
+      return;
+    } catch (e) {
+      deps.output.appendLine(`git.openMergeEditor failed for ${file}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    try {
+      await vscode.commands.executeCommand('vscode.open', uri);
+    } catch (e) {
+      ui.error({ key: 'Could not open {0}.', args: [file] }, e);
     }
   };
 
@@ -97,17 +99,22 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
   const runFlow = async (
     repo: RepoHandle,
     title: Msg,
-    flow: (c: PushCtx) => Promise<FlowResult | MergeResult>,
+    flow: (c: ConflictCtx) => Promise<FlowResult | MergeResult>,
   ): Promise<void> => {
     try {
       const result = await ui.progress(title, async () => {
         const snap = await loadSnapshot(repo.git, { baseBranch: readSettings(repo.root).baseBranch });
-        // Temporary: a per-run store until the pending push is kept in workspaceState.
-        return flow({ git: repo.git, ui, snap, pending: memoryPendingStore() });
+        return flow({
+          git: repo.git,
+          ui,
+          snap,
+          pending: workspacePendingStore(ctx.workspaceState, repo.root),
+          openMergeEditor: (file) => openMergeEditor(repo.root, file),
+        });
       });
       if (result === 'conflicts') {
-        const rebasing = await repoState(repo.git).then((st) => st.rebase !== undefined, () => false);
-        void offerConflictHandoff(repo, rebasing);
+        // Not awaited, so the tree refreshes at once.
+        void vscode.commands.executeCommand('junction.openConflicts', { repo });
       }
     } catch (e) {
       ui.error({ key: 'Unexpected error: {0}', args: [e instanceof Error ? e.message : String(e)] }, e);
@@ -239,16 +246,52 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
       return;
     }
     await vscode.commands.executeCommand('workbench.view.scm');
-    try {
-      const out = await repo.git.run(['diff', '--name-only', '--diff-filter=U']);
-      const first = out.split('\n').map((l) => l.trim()).find(Boolean);
-      if (first) {
-        await vscode.commands.executeCommand('vscode.open', vscode.Uri.joinPath(repo.root, first));
-      }
-    } catch (e) {
-      ui.error({ key: 'Could not list conflicted files.' }, e);
-    }
+    await runFlow(repo, { key: 'Loading conflicts…' }, conflictListFlow);
   });
+
+  // ---- conflict notices ---------------------------------------------------
+
+  const showNotice = (repo: RepoHandle, n: Notice): void => {
+    switch (n.kind) {
+      case 'remaining':
+        ui.info({ key: '{0} conflicted files left.', args: [n.count] }, [{ key: 'Next File' }], () => {
+          void vscode.commands.executeCommand('junction.openConflicts', { repo });
+        });
+        return;
+      case 'allResolved':
+        if (n.op === 'rebase') {
+          ui.info({ key: 'All conflicts are resolved.' }, [{ key: 'Continue Rebase' }], () => {
+            void runFlow(repo, { key: 'Continuing…' }, mergeFlows.continueFlow);
+          });
+        } else if (n.withPush) {
+          ui.info(
+            { key: 'All conflicts are resolved.' },
+            [{ key: 'Complete Merge and Push' }, { key: 'Complete Merge Only' }],
+            (i) => {
+              const push = i === 0;
+              void runFlow(repo, push ? { key: 'Pushing…' } : { key: 'Continuing…' }, (c) => finishMergeFlow(c, { push }));
+            },
+          );
+        } else {
+          ui.info({ key: 'All conflicts are resolved.' }, [{ key: 'Complete Merge' }], () => {
+            void runFlow(repo, { key: 'Continuing…' }, (c) => finishMergeFlow(c, { push: false }));
+          });
+        }
+        return;
+      case 'mergeEnded':
+        void runFlow(repo, { key: 'Pushing…' }, resumePendingPushFlow);
+        return;
+    }
+  };
+  ctx.subscriptions.push(
+    watchConflicts(
+      conn,
+      showNotice,
+      (repo) => workspacePendingStore(ctx.workspaceState, repo.root).get() !== undefined,
+      (line) => deps.output.appendLine(line),
+    ),
+  );
+
   // ---- pull requests ------------------------------------------------------
 
   const NAG_PREFIX = 'junction.prNag.';
