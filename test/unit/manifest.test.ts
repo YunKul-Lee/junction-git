@@ -41,7 +41,7 @@ describe('docs', () => {
   });
 
   it('matches the package version in the changelog', () => {
-    expect(pkg.version).toBe('0.2.0');
+    expect(pkg.version).toBe('0.3.0');
     expect(changelog).toContain(`## ${pkg.version}`);
   });
 });
