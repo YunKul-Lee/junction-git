@@ -99,5 +99,11 @@
   "No pull requests on this server": "이 서버는 PR 기능이 없음",
   "Web address for {0}": "{0}의 웹 주소",
   "Pull requests are turned off for {0}.": "{0}에서는 PR 기능을 사용하지 않습니다.",
-  "Pull requests are turned off for {0}. You can change this in settings.": "{0}에서는 PR 기능을 사용하지 않습니다. 설정에서 바꿀 수 있습니다."
+  "Pull requests are turned off for {0}. You can change this in settings.": "{0}에서는 PR 기능을 사용하지 않습니다. 설정에서 바꿀 수 있습니다.",
+  "Push was rejected.": "푸시가 거부되었습니다.",
+  "Merge and Push": "병합 후 푸시",
+  "Checkout and Merge": "체크아웃 후 병합",
+  "{0} has {1} commits that are not in your branch.": "{0}에 내 브랜치에 없는 커밋이 {1}개 있습니다.",
+  "Conflict markers are left in {0}. Fix them and push again.": "{0}에 충돌 표시가 남아 있습니다. 수정한 뒤 다시 푸시하세요.",
+  "The merge is finished. Push {0} now?": "병합이 끝났습니다. 지금 {0}을(를) 푸시할까요?"
 }

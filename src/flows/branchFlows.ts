@@ -6,6 +6,8 @@ import { Msg, Ui } from './ui';
 
 export type { FlowResult } from './ui';
 import type { FlowResult } from './ui';
+// Push lives in pushFlows.ts (it can merge on rejection); re-exported so callers keep one entry point.
+export { pushFlow } from './pushFlows';
 
 export interface FlowCtx {
   git: Git;
@@ -16,10 +18,10 @@ export interface FlowCtx {
 // User messages are written as inline `{ key: 'English text', args }` literals on purpose: the key is
 // both the English text and the l10n key, and a test scans the sources for them.
 
-const isNonFastForward = (e: unknown): boolean =>
+export const isNonFastForward = (e: unknown): boolean =>
   e instanceof GitError && /non-fast-forward|\[rejected\]|Not possible to fast-forward|diverging/i.test(e.stderr);
 
-function inProgress(c: FlowCtx): boolean {
+export function inProgress(c: FlowCtx): boolean {
   if (c.snap.state.rebase || c.snap.state.merging) {
     c.ui.error({ key: 'A rebase or merge is in progress.' });
     return true;
@@ -27,7 +29,7 @@ function inProgress(c: FlowCtx): boolean {
   return false;
 }
 
-function remoteOf(snap: RepoSnapshot, ref: string): { remote: string; branch: string } | undefined {
+export function remoteOf(snap: RepoSnapshot, ref: string): { remote: string; branch: string } | undefined {
   const remote = snap.remotes.find((r) => ref.startsWith(`${r}/`));
   return remote ? { remote, branch: ref.slice(remote.length + 1) } : undefined;
 }
@@ -244,58 +246,6 @@ export async function deleteRemoteFlow(c: FlowCtx, b: BranchRef): Promise<FlowRe
     return 'done';
   } catch (e) {
     ui.error({ key: 'Could not delete remote branch {0}.', args: [b.name] }, e);
-    return 'failed';
-  }
-}
-
-export async function pushFlow(c: FlowCtx, b: BranchRef): Promise<FlowResult> {
-  const { git, ui, snap } = c;
-  if (snap.remotes.length === 0) {
-    ui.error({ key: 'No remote configured.' });
-    return 'failed';
-  }
-  const hasUpstream = !!b.upstream && !b.upstreamGone;
-  const setUpstreamTo = hasUpstream
-    ? undefined
-    : ((snap.base?.remoteRef && remoteOf(snap, snap.base.remoteRef)?.remote) ?? snap.remotes[0]);
-  try {
-    await ops.push(git, b.name, { setUpstreamTo });
-    return 'done';
-  } catch (e) {
-    if (!isNonFastForward(e)) {
-      ui.error({ key: 'Could not push {0}.', args: [b.name] }, e);
-      return 'failed';
-    }
-  }
-  try {
-    // Look at the remote as it is now: the user confirms against exactly this state.
-    const { remote, dest } = await ops.pushTarget(git, b.name, setUpstreamTo);
-    await ops.fetchRemote(git, remote);
-    const tip = await ops.remoteTip(git, remote, dest);
-    if (!tip) {
-      ui.error({ key: 'Could not push {0}.', args: [b.name] });
-      return 'failed';
-    }
-    const lost = await ops.countNotIn(git, tip, b.name);
-    const detail: Msg =
-      lost > 0
-        ? {
-            key: '{0} has {1} commits that are not in your branch. They will be discarded from the remote.',
-            args: [`${remote}/${dest.replace(/^refs\/heads\//, '')}`, lost],
-          }
-        : { key: 'The remote branch will be overwritten.' };
-    const choice = await ui.confirm(
-      { key: 'Push was rejected. Force push with lease?' },
-      [{ key: 'Force Push (with lease)' }],
-      { modal: true, detail },
-    );
-    if (choice === undefined) {
-      return 'cancelled';
-    }
-    await ops.push(git, b.name, { setUpstreamTo, forceWithLease: { expect: tip } });
-    return 'done';
-  } catch (e) {
-    ui.error({ key: 'Could not push {0}.', args: [b.name] }, e);
     return 'failed';
   }
 }

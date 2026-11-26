@@ -1,9 +1,9 @@
 import { remoteUrl } from '../git/queries';
-import { BranchRef, Git } from '../git/types';
+import { BranchRef } from '../git/types';
 import { RepoSnapshot } from '../model/repoModel';
 import { PrServer, ServerType, buildPrUrl, findServer, guessDataCenter, guessPublic, parseRemote, serverTypeOrder } from '../pr/providers';
-import { pushFlow } from './branchFlows';
-import { FlowResult, Ui } from './ui';
+import type { MergeResult } from './mergeFlows';
+import { PushCtx, pushFlow } from './pushFlows';
 
 export interface PrEnv {
   /** Servers from every settings scope, most specific first (the first match wins). */
@@ -17,10 +17,7 @@ export interface PrEnv {
   bumpNag(gitHost: string): void;
 }
 
-export interface PrCtx {
-  git: Git;
-  ui: Ui;
-  snap: RepoSnapshot;
+export interface PrCtx extends PushCtx {
   env: PrEnv;
 }
 
@@ -43,7 +40,7 @@ function remoteName(snap: RepoSnapshot, b: BranchRef): string | undefined {
   );
 }
 
-export async function createPrFlow(c: PrCtx, b: BranchRef, target?: string): Promise<FlowResult> {
+export async function createPrFlow(c: PrCtx, b: BranchRef, target?: string): Promise<MergeResult> {
   const { git, ui, snap, env } = c;
   const remote = remoteName(snap, b);
   const url = remote ? await remoteUrl(git, remote) : undefined;
@@ -105,7 +102,11 @@ export async function createPrFlow(c: PrCtx, b: BranchRef, target?: string): Pro
     if (choice === undefined) {
       return 'cancelled';
     }
-    if ((await pushFlow({ git, ui, snap }, b)) !== 'done') {
+    const pushResult = await pushFlow(c, b);
+    if (pushResult === 'conflicts') {
+      return 'conflicts';
+    }
+    if (pushResult !== 'done') {
       return 'failed';
     }
   }

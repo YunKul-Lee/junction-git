@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { memoryPendingStore } from '../../src/flows/pendingPush';
 import { createPrFlow, PrEnv } from '../../src/flows/prFlow';
 import { BranchRef } from '../../src/git/types';
 import { PrServer } from '../../src/pr/providers';
@@ -53,7 +54,7 @@ describe('createPrFlow', () => {
   const run = async (ui: FakeUi, env: Env, target?: string) => {
     const snap = await snapOf();
     const b = snap.branches.find((x) => x.kind === 'local' && x.name === 'feature/x') as BranchRef;
-    return createPrFlow({ git: repo.git, ui, snap, env }, b, target);
+    return createPrFlow({ git: repo.git, ui, snap, env, pending: memoryPendingStore() }, b, target);
   };
   const DC_PR =
     'https://git.acme.com/projects/PROJ/repos/web/pull-requests?create&sourceBranch=refs%2Fheads%2Ffeature%2Fx&targetBranch=refs%2Fheads%2Fdevelop';

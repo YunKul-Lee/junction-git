@@ -13,6 +13,8 @@ import {
   renameFlow,
   syncFlow,
 } from '../../src/flows/branchFlows';
+import { memoryPendingStore } from '../../src/flows/pendingPush';
+import type { PushCtx } from '../../src/flows/pushFlows';
 import { BranchRef } from '../../src/git/types';
 import { loadSnapshot, RepoSnapshot } from '../../src/model/repoModel';
 import { FakeUi } from '../helpers/fakeUi';
@@ -60,8 +62,8 @@ describe('branch flows', () => {
     return (await c('rev-parse', 'HEAD')).trim();
   }
 
-  async function ctx(ui: FakeUi): Promise<{ git: typeof repo.git; ui: FakeUi; snap: RepoSnapshot }> {
-    return { git: repo.git, ui, snap: await snapOf() };
+  async function ctx(ui: FakeUi): Promise<PushCtx & { ui: FakeUi }> {
+    return { git: repo.git, ui, snap: await snapOf(), pending: memoryPendingStore() };
   }
 
   describe('checkout', () => {
@@ -297,12 +299,16 @@ describe('branch flows', () => {
     it('rejected push + confirm force-pushes with lease', async () => {
       repo = await makeRepo();
       await rejectedSetup();
-      const ui = new FakeUi([0]);
+      const ui = new FakeUi([1, 0]);
       const c = await ctx(ui);
       expect(await pushFlow(c, ref(c.snap, 'feature/p'))).toBe('done');
       expect((await lsRemote('feature/p')).split('\t')[0]).toBe(await rev('feature/p'));
       expect(ui.of('confirm')[0].opts?.modal).toBe(true);
       expect(ui.of('confirm')[0].opts?.detail?.args).toEqual(['origin/feature/p', 1]);
+      expect(ui.of('confirm')[1].msg.key).toBe('Push was rejected. Force push with lease?');
+      expect(ui.of('confirm')[1].opts?.detail?.key).toBe(
+        '{0} has {1} commits that are not in your branch. They will be discarded from the remote.',
+      );
     });
 
     it('fails and keeps the remote when it moves after the confirmation', async () => {
@@ -310,6 +316,7 @@ describe('branch flows', () => {
       await rejectedSetup();
       let newer = '';
       const ui = new FakeUi([
+        1,
         async () => {
           newer = await pushFromOtherClone('feature/p');
           return 0;

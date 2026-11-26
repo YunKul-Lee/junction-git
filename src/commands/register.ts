@@ -6,7 +6,9 @@ import * as flows from '../flows/branchFlows';
 import * as mergeFlows from '../flows/mergeFlows';
 import { createPrFlow, PrEnv } from '../flows/prFlow';
 import { MergeResult } from '../flows/mergeFlows';
-import { FlowResult, Msg, Ui } from '../flows/ui';
+import { memoryPendingStore } from '../flows/pendingPush';
+import { PushCtx } from '../flows/pushFlows';
+import { FlowResult, Msg } from '../flows/ui';
 import { BranchRef } from '../git/types';
 import { fetchAll } from '../git/operations';
 import { repoState } from '../git/queries';
@@ -95,12 +97,13 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
   const runFlow = async (
     repo: RepoHandle,
     title: Msg,
-    flow: (c: { git: RepoHandle['git']; ui: Ui; snap: Awaited<ReturnType<typeof loadSnapshot>> }) => Promise<FlowResult | MergeResult>,
+    flow: (c: PushCtx) => Promise<FlowResult | MergeResult>,
   ): Promise<void> => {
     try {
       const result = await ui.progress(title, async () => {
         const snap = await loadSnapshot(repo.git, { baseBranch: readSettings(repo.root).baseBranch });
-        return flow({ git: repo.git, ui, snap });
+        // Temporary: a per-run store until the pending push is kept in workspaceState.
+        return flow({ git: repo.git, ui, snap, pending: memoryPendingStore() });
       });
       if (result === 'conflicts') {
         const rebasing = await repoState(repo.git).then((st) => st.rebase !== undefined, () => false);
