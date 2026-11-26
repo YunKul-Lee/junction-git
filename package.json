@@ -6,7 +6,7 @@
   "publisher": "TODO-publisher",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.88.0"
   },
   "categories": [
     "SCM Providers"
@@ -467,15 +467,16 @@
     "watch": "node esbuild.mjs --watch",
     "compile:test": "tsc -p tsconfig.test.json",
     "test:unit": "vitest run",
-    "test:ext": "npm run build && npm run compile:test && vscode-test",
+    "test:ext": "npm run build && npm run compile:test && vscode-test --label stable",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "lint": "npm run typecheck && eslint src test --ext ts",
-    "package": "vsce package"
+    "package": "vsce package",
+    "test:ext:min": "npm run build && npm run compile:test && vscode-test --label min"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "^20.19.43",
-    "@types/vscode": "1.90.0",
+    "@types/node": "^18.19.130",
+    "@types/vscode": "1.88.0",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "@vscode/test-cli": "^0.0.15",

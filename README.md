@@ -16,6 +16,11 @@ A branch sidebar for Git in VS Code. Browse local and remote branches, switch be
 - Multi-root workspaces: each repository gets its own section.
 - English and Korean UI.
 
+## Requirements
+
+- VS Code 1.88 or later, with the built-in Git extension enabled.
+- Git installed and on your `PATH` (Junction uses the same git as VS Code's Source Control).
+
 ## Settings
 
 | Setting | Default | Description |
