@@ -187,6 +187,27 @@ describe('push with merge', () => {
     expect(merging()).toBe(true);
   });
 
+  it('finishMergeFlow completes the merge but does not push when HEAD is another branch', async () => {
+    repo = await makeRepo();
+    const remote = await rejectedSetup(true);
+    // The marker names a branch other than the one being merged.
+    const pending = memoryPendingStore();
+    const c0 = await ctx(new FakeUi([0]), pending);
+    expect(await pushFlow(c0, ref(c0.snap, 'feature/p'))).toBe('conflicts');
+    pending.set({ branch: 'develop', tip: remote });
+    await checkoutSide(repo.git, 'shared.txt', 'theirs');
+    const ui = new FakeUi();
+    const c = await ctx(ui, pending);
+    expect(await finishMergeFlow(c, { push: true })).toBe('done');
+    expect(merging()).toBe(false);
+    expect(ui.of('info')[0].msg).toEqual({
+      key: 'The merge is complete. {0} was not pushed because another branch is checked out.',
+      args: ['develop'],
+    });
+    expect(pending.get()).toBeUndefined();
+    expect(await remoteSha('feature/p')).toBe(remote);
+  });
+
   it('leftover markers block the push', async () => {
     repo = await makeRepo();
     const { remote, pending } = await conflictingMerge();
@@ -213,6 +234,22 @@ describe('push with merge', () => {
     expect(ui.of('confirm')[0].msg).toEqual({ key: 'The merge is finished. Push {0} now?', args: ['feature/p'] });
     expect(await remoteSha('feature/p')).toBe(await rev('HEAD'));
     expect(pending.get()).toBeUndefined();
+  });
+
+  it('resume: a push rejected again can merge and stop on conflicts', async () => {
+    repo = await makeRepo();
+    const { pending } = await conflictingMerge();
+    await checkoutSide(repo.git, 'shared.txt', 'ours');
+    await repo.sh('commit', '--no-edit');
+    // The remote moves again, conflicting with the merge result.
+    const newer = await pushFromOtherClone('feature/p', 'shared.txt', 'theirs again\n');
+    const ui = new FakeUi([0, 0]);
+    const c = await ctx(ui, pending);
+    expect(await resumePendingPushFlow(c)).toBe('conflicts');
+    expect(ui.of('confirm').map((x) => x.msg.key)).toEqual(['The merge is finished. Push {0} now?', 'Push was rejected.']);
+    expect(pending.get()).toEqual({ branch: 'feature/p', tip: newer });
+    expect(merging()).toBe(true);
+    expect(await remoteSha('feature/p')).toBe(newer);
   });
 
   it('resume keeps the marker while the merge is still in progress', async () => {

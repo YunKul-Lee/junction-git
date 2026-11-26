@@ -4,7 +4,7 @@ import { BranchRef, GitError } from '../git/types';
 import { FlowCtx, inProgress, isNonFastForward, remoteOf } from './branchFlows';
 import { continueFlow, MergeResult } from './mergeFlows';
 import { PendingPushStore } from './pendingPush';
-import type { FlowResult, Msg } from './ui';
+import type { Msg } from './ui';
 
 export interface PushCtx extends FlowCtx {
   pending: PendingPushStore;
@@ -148,17 +148,22 @@ export async function finishMergeFlow(c: PushCtx, opts: { push: boolean }): Prom
   const result = await continueFlow(c);
   if (result !== 'done' && opts.push && p) {
     // The merge is not finished (files still conflicted, or git refused): keep waiting to push.
+    // Only for push:true; "merge only" means the user declined the push.
     c.pending.set(p);
   }
   if (result !== 'done' || !opts.push || !p) {
     return result;
   }
   const b = headBranch(c, p.branch);
-  return b ? pushAfterMerge(c, b, p.tip) : result;
+  if (!b) {
+    c.ui.info({ key: 'The merge is complete. {0} was not pushed because another branch is checked out.', args: [p.branch] });
+    return result;
+  }
+  return pushAfterMerge(c, b, p.tip);
 }
 
 /** Offers the waiting push once a merge that started from a rejected push was finished some other way. */
-export async function resumePendingPushFlow(c: PushCtx): Promise<FlowResult> {
+export async function resumePendingPushFlow(c: PushCtx): Promise<MergeResult> {
   const { git, ui, snap, pending } = c;
   const p = pending.get();
   if (!p || snap.state.merging) {
@@ -175,7 +180,5 @@ export async function resumePendingPushFlow(c: PushCtx): Promise<FlowResult> {
   if (choice === undefined) {
     return 'cancelled';
   }
-  const result = await pushAfterMerge(c, b, p.tip);
-  // A second rejection whose merge stops on conflicts leaves the repo merging; the conflict watcher takes it from there.
-  return result === 'conflicts' ? 'failed' : result;
+  return pushAfterMerge(c, b, p.tip);
 }
