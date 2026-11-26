@@ -169,30 +169,55 @@ export async function conflictedFiles(git: Git): Promise<string[]> {
 }
 
 /**
- * Resolves `file` with one side's version and stages it. When that side has no version
- * (it deleted the file), the file is removed instead.
+ * Resolves `file` with one side's version and stages it. When the file is conflicted and that side
+ * has no version (it deleted the file), the file is removed instead. Any other failure propagates.
  */
 export async function checkoutSide(git: Git, file: string, side: 'ours' | 'theirs'): Promise<'kept' | 'deleted'> {
-  try {
-    await git.run(['checkout', `--${side}`, '--', file]);
-  } catch {
+  const unmerged = await git.run(['ls-files', '-u', '-z', '--', file]);
+  // Entries look like "<mode> <sha> <stage>\t<path>"; stage 2 is ours, stage 3 is theirs.
+  const stages = new Set(
+    unmerged
+      .split('\0')
+      .filter((e) => e !== '')
+      .map((e) => e.split('\t')[0].split(' ')[2]),
+  );
+  if (stages.size > 0 && !stages.has(side === 'ours' ? '2' : '3')) {
     await git.run(['rm', '-q', '--', file]);
     return 'deleted';
   }
+  await git.run(['checkout', `--${side}`, '--', file]);
   await git.run(['add', '--', file]);
   return 'kept';
 }
 
 /** Files that gained conflict marker lines between `from` and `to`. */
 export async function leftoverMarkers(git: Git, from: string, to: string): Promise<string[]> {
-  const out = await git.run(['-c', 'core.quotePath=false', 'diff', '--no-color', '--no-ext-diff', '-U0', from, to]);
+  // Explicit prefixes keep user diff.noprefix / diff.mnemonicPrefix config from changing the header format.
+  const out = await git.run([
+    '-c',
+    'core.quotePath=false',
+    'diff',
+    '--no-color',
+    '--no-ext-diff',
+    '--src-prefix=a/',
+    '--dst-prefix=b/',
+    '-U0',
+    from,
+    to,
+  ]);
   const files = new Set<string>();
   let current = '';
+  let inHunk = false;
   for (const line of out.split('\n')) {
-    if (line.startsWith('+++ ')) {
+    if (line.startsWith('diff --git ')) {
+      inHunk = false;
+      current = '';
+    } else if (line.startsWith('@@')) {
+      inHunk = true;
+    } else if (!inHunk && line.startsWith('+++ ')) {
       // git appends a tab after names containing spaces
       current = line.startsWith('+++ b/') ? line.slice(6).replace(/\t$/, '') : '';
-    } else if (current && /^\+(<{7}|={7}|>{7})( |$)/.test(line)) {
+    } else if (inHunk && current && /^\+(<{7}|={7}|>{7})( |$)/.test(line)) {
       files.add(current);
     }
   }

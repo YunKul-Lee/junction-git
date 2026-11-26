@@ -80,4 +80,22 @@ describe('conflict operations', () => {
     await repo.commit('mid', 'b.txt', 'x <<<<<<< y\n');
     expect(await leftoverMarkers(repo.git, before, 'HEAD')).toEqual([]);
   });
+
+  it('checkoutSide rethrows when the path is unknown and deletes nothing', async () => {
+    await expect(checkoutSide(repo.git, 'missing.txt', 'theirs')).rejects.toBeDefined();
+    expect(await read('README.md')).toBe('initial\n');
+  });
+
+  it('leftoverMarkers is independent of diff.noprefix config', async () => {
+    await repo.sh('config', 'diff.noprefix', 'true');
+    const before = (await repo.sh('rev-parse', 'HEAD')).trim();
+    await repo.commit('markers', NESTED, '<<<<<<< HEAD\nx\n');
+    expect(await leftoverMarkers(repo.git, before, 'HEAD')).toEqual([NESTED]);
+  });
+
+  it('leftoverMarkers is not confused by an added line starting with "++ "', async () => {
+    const before = (await repo.sh('rev-parse', 'HEAD')).trim();
+    await repo.commit('tricky', 'c.txt', '++ x\n<<<<<<< HEAD\n');
+    expect(await leftoverMarkers(repo.git, before, 'HEAD')).toEqual(['c.txt']);
+  });
 });
