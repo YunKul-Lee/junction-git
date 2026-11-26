@@ -161,3 +161,40 @@ export async function rebaseContinue(git: Git): Promise<void> {
 export async function rebaseAbort(git: Git): Promise<void> {
   await git.run(['rebase', '--abort']);
 }
+
+/** Paths with unresolved merge conflicts, sorted. */
+export async function conflictedFiles(git: Git): Promise<string[]> {
+  const out = await git.run(['-c', 'core.quotePath=false', 'diff', '--name-only', '--diff-filter=U', '-z']);
+  return out.split('\0').filter((f) => f !== '').sort();
+}
+
+/**
+ * Resolves `file` with one side's version and stages it. When that side has no version
+ * (it deleted the file), the file is removed instead.
+ */
+export async function checkoutSide(git: Git, file: string, side: 'ours' | 'theirs'): Promise<'kept' | 'deleted'> {
+  try {
+    await git.run(['checkout', `--${side}`, '--', file]);
+  } catch {
+    await git.run(['rm', '-q', '--', file]);
+    return 'deleted';
+  }
+  await git.run(['add', '--', file]);
+  return 'kept';
+}
+
+/** Files that gained conflict marker lines between `from` and `to`. */
+export async function leftoverMarkers(git: Git, from: string, to: string): Promise<string[]> {
+  const out = await git.run(['-c', 'core.quotePath=false', 'diff', '--no-color', '--no-ext-diff', '-U0', from, to]);
+  const files = new Set<string>();
+  let current = '';
+  for (const line of out.split('\n')) {
+    if (line.startsWith('+++ ')) {
+      // git appends a tab after names containing spaces
+      current = line.startsWith('+++ b/') ? line.slice(6).replace(/\t$/, '') : '';
+    } else if (current && /^\+(<{7}|={7}|>{7})( |$)/.test(line)) {
+      files.add(current);
+    }
+  }
+  return [...files];
+}
