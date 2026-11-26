@@ -168,26 +168,68 @@ export async function conflictedFiles(git: Git): Promise<string[]> {
   return out.split('\0').filter((f) => f !== '').sort();
 }
 
+/** `--literal-pathspecs` keeps names like `app/[id]/page.tsx` from matching other files as globs. */
+const LITERAL = '--literal-pathspecs';
+
+/** Index stages present for `file`: 1 base, 2 ours, 3 theirs. Empty when the file is not conflicted. */
+export async function conflictStages(git: Git, file: string): Promise<Set<1 | 2 | 3>> {
+  const unmerged = await git.run([LITERAL, 'ls-files', '-u', '-z', '--', file]);
+  // Entries look like "<mode> <sha> <stage>\t<path>".
+  return new Set(
+    unmerged
+      .split('\0')
+      .filter((e) => e !== '')
+      .map((e) => Number(e.split('\t')[0].split(' ')[2]) as 1 | 2 | 3),
+  );
+}
+
 /**
  * Resolves `file` with one side's version and stages it. When the file is conflicted and that side
  * has no version (it deleted the file), the file is removed instead. Any other failure propagates.
  */
 export async function checkoutSide(git: Git, file: string, side: 'ours' | 'theirs'): Promise<'kept' | 'deleted'> {
-  const unmerged = await git.run(['ls-files', '-u', '-z', '--', file]);
-  // Entries look like "<mode> <sha> <stage>\t<path>"; stage 2 is ours, stage 3 is theirs.
-  const stages = new Set(
-    unmerged
-      .split('\0')
-      .filter((e) => e !== '')
-      .map((e) => e.split('\t')[0].split(' ')[2]),
-  );
-  if (stages.size > 0 && !stages.has(side === 'ours' ? '2' : '3')) {
-    await git.run(['rm', '-q', '--', file]);
+  const stages = await conflictStages(git, file);
+  if (stages.size > 0 && !stages.has(side === 'ours' ? 2 : 3)) {
+    await git.run([LITERAL, 'rm', '-q', '--', file]);
     return 'deleted';
   }
-  await git.run(['checkout', `--${side}`, '--', file]);
-  await git.run(['add', '--', file]);
+  await git.run([LITERAL, 'checkout', `--${side}`, '--', file]);
+  await git.run([LITERAL, 'add', '--', file]);
   return 'kept';
+}
+
+const C_ESCAPES: Record<string, string> = { a: '\x07', b: '\b', f: '\f', n: '\n', r: '\r', t: '\t', v: '\v', '"': '"', '\\': '\\' };
+
+/** Undoes git's C-style quoting of a path (`"a\"b"`); octal escapes are UTF-8 bytes. */
+function unquoteC(quoted: string): string {
+  const bytes: number[] = [];
+  const body = Array.from(quoted.slice(1, -1)); // code points, so astral characters stay whole
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch !== '\\') {
+      bytes.push(...Buffer.from(ch, 'utf8'));
+      continue;
+    }
+    const next = body[i + 1];
+    if (/[0-7]/.test(next)) {
+      bytes.push(parseInt(body.slice(i + 1, i + 4).join(''), 8));
+      i += 3;
+    } else {
+      bytes.push(...Buffer.from(C_ESCAPES[next] ?? next, 'utf8'));
+      i += 1;
+    }
+  }
+  return Buffer.from(bytes).toString('utf8');
+}
+
+/** The new-side path of a `+++ ` header line, or '' for /dev/null. */
+function dstPath(line: string): string {
+  const name = line.slice(4);
+  if (name.startsWith('"b/')) {
+    return unquoteC(name.replace(/\t$/, '')).slice(2);
+  }
+  // git appends a tab after names containing spaces
+  return name.startsWith('b/') ? name.slice(2).replace(/\t$/, '') : '';
 }
 
 /** Files that gained conflict marker lines between `from` and `to`. */
@@ -215,8 +257,7 @@ export async function leftoverMarkers(git: Git, from: string, to: string): Promi
     } else if (line.startsWith('@@')) {
       inHunk = true;
     } else if (!inHunk && line.startsWith('+++ ')) {
-      // git appends a tab after names containing spaces
-      current = line.startsWith('+++ b/') ? line.slice(6).replace(/\t$/, '') : '';
+      current = dstPath(line);
     } else if (inHunk && current && /^\+(<{7}|={7}|>{7})( |$)/.test(line)) {
       files.add(current);
     }

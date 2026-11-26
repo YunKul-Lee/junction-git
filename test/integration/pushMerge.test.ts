@@ -208,6 +208,23 @@ describe('push with merge', () => {
     expect(await remoteSha('feature/p')).toBe(remote);
   });
 
+  it('finishMergeFlow: a push rejected again can merge despite the snapshot taken mid-merge', async () => {
+    repo = await makeRepo();
+    const { pending } = await conflictingMerge();
+    await checkoutSide(repo.git, 'shared.txt', 'theirs');
+    // The snapshot is taken while merging, as when the "Complete Merge and Push" notice is clicked.
+    const ui = new FakeUi([0]);
+    const c = await ctx(ui, pending);
+    // The remote moves again (no conflict) while the user was resolving.
+    await pushFromOtherClone('feature/p', 'later.txt', 'later\n');
+    const result = await finishMergeFlow(c, { push: true });
+    expect(ui.of('error').map((x) => x.msg.key)).toEqual([]);
+    expect(result).toBe('done');
+    expect(ui.of('confirm').map((x) => x.msg.key)).toEqual(['Push was rejected.']);
+    expect(merging()).toBe(false);
+    expect(await remoteSha('feature/p')).toBe(await rev('HEAD'));
+  });
+
   it('leftover markers block the push', async () => {
     repo = await makeRepo();
     const { remote, pending } = await conflictingMerge();

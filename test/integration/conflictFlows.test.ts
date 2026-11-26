@@ -20,11 +20,15 @@ describe('conflictListFlow', () => {
 
   const read = async (f: string): Promise<string> => fs.readFile(path.join(repo.dir, f), 'utf8');
   const open = vi.fn<(file: string) => Promise<void>>();
+  const openFile = vi.fn<(file: string) => Promise<void>>();
 
   async function ctx(ui: FakeUi, pending: PendingPushStore = memoryPendingStore()): Promise<ConflictCtx> {
     open.mockReset();
     open.mockResolvedValue(undefined);
-    return { git: repo.git, ui, snap: await loadSnapshot(repo.git, { baseBranch: '' }), pending, openMergeEditor: open };
+    openFile.mockReset();
+    openFile.mockResolvedValue(undefined);
+    const snap = await loadSnapshot(repo.git, { baseBranch: '' });
+    return { git: repo.git, ui, snap, pending, openMergeEditor: open, openFile };
   }
 
   /** develop and topic both edit README.md; HEAD is left on develop. */
@@ -52,6 +56,25 @@ describe('conflictListFlow', () => {
     const ui = new FakeUi([{ kind: 'file', file: 'README.md' }]);
     expect(await conflictListFlow(await ctx(ui))).toBe('done');
     expect(open).toHaveBeenCalledWith('README.md');
+    expect(openFile).not.toHaveBeenCalled();
+  });
+
+  it('picking a file deleted on one side opens it in a plain editor', async () => {
+    await repo.commit('add a', 'a.txt', 'a\n');
+    await repo.sh('switch', '-c', 'topic');
+    await repo.sh('rm', '-q', 'a.txt');
+    await repo.sh('commit', '-m', 'topic deletes a');
+    await repo.sh('switch', 'develop');
+    await repo.commit('develop edits a', 'a.txt', 'changed\n');
+    await expect(repo.sh('merge', 'topic')).rejects.toBeDefined();
+    const ui = new FakeUi([{ kind: 'file', file: 'a.txt' }]);
+    expect(await conflictListFlow(await ctx(ui))).toBe('done');
+    expect(openFile).toHaveBeenCalledWith('a.txt');
+    expect(open).not.toHaveBeenCalled();
+    expect(ui.of('info')[0].msg).toEqual({
+      key: '{0} was deleted on one side. Edit or delete the file, then stage it.',
+      args: ['a.txt'],
+    });
   });
 
   it('accept theirs for all resolves every file after confirm', async () => {

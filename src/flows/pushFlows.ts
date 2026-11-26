@@ -88,12 +88,14 @@ function pushed(c: PushCtx, b: BranchRef): 'done' {
 
 /** Merges `remoteShort` (the rejected push's destination, at `tip`) into `b`, then pushes again. */
 async function mergeRemote(c: PushCtx, b: BranchRef, remoteShort: string, tip: string): Promise<MergeResult> {
-  const { git, ui, snap, pending } = c;
-  if (inProgress(c)) {
+  const { git, ui, pending } = c;
+  // Read fresh: after finishing a conflicted merge, the snapshot still says merging. pushFlow reports a failure.
+  const state = await repoState(git);
+  if (inProgress({ ...c, snap: { ...c.snap, state } })) {
     return 'failed';
   }
   // Checked before switching, so a dirty tree never leaves the user on another branch with nothing merged.
-  if (snap.state.dirty) {
+  if (state.dirty) {
     ui.error({ key: 'Commit or stash your changes first.' });
     return 'failed';
   }

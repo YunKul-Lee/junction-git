@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Notice, nextNotice, WatchState } from '../flows/conflictWatch';
+import { Notice, nextNotice, PendingSeen, WatchState } from '../flows/conflictWatch';
 import { conflictedFiles } from '../git/operations';
 import { repoState } from '../git/queries';
 import { GitConnection, RepoHandle } from './gitApi';
@@ -24,7 +24,8 @@ interface Watched {
 export function watchConflicts(
   conn: GitConnection,
   onNotice: (repo: RepoHandle, n: Notice) => void,
-  hasPending: (repo: RepoHandle) => boolean,
+  /** The branch a rejected push waits on in `repo`, if any. */
+  pendingBranch: (repo: RepoHandle) => string | undefined,
   log: (line: string) => void,
 ): vscode.Disposable {
   const watched = new Map<string, Watched>();
@@ -43,7 +44,9 @@ export function watchConflicts(
         return;
       }
       const cur: WatchState = { op, conflicts };
-      const notice = nextNotice(w.prev, cur, hasPending(w.repo));
+      const branch = pendingBranch(w.repo);
+      const pending: PendingSeen = branch === undefined ? 'none' : branch === st.head ? 'onHead' : 'elsewhere';
+      const notice = nextNotice(w.prev, cur, pending);
       w.prev = cur;
       if (notice) {
         onNotice(w.repo, notice);

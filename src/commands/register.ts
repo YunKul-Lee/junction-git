@@ -79,20 +79,24 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
 
   // ---- branch operations --------------------------------------------------
 
+  /** Opens a file in a plain editor. Never rejects. */
+  const openFile = async (root: vscode.Uri, file: string): Promise<void> => {
+    try {
+      await vscode.commands.executeCommand('vscode.open', vscode.Uri.joinPath(root, file));
+    } catch (e) {
+      ui.error({ key: 'Could not open {0}.', args: [file] }, e);
+    }
+  };
+
   /** Opens a conflicted file in the Merge Editor, else in a plain editor. Never rejects. */
   const openMergeEditor = async (root: vscode.Uri, file: string): Promise<void> => {
-    const uri = vscode.Uri.joinPath(root, file);
     try {
-      await vscode.commands.executeCommand('git.openMergeEditor', uri);
+      await vscode.commands.executeCommand('git.openMergeEditor', vscode.Uri.joinPath(root, file));
       return;
     } catch (e) {
       deps.output.appendLine(`git.openMergeEditor failed for ${file}: ${e instanceof Error ? e.message : String(e)}`);
     }
-    try {
-      await vscode.commands.executeCommand('vscode.open', uri);
-    } catch (e) {
-      ui.error({ key: 'Could not open {0}.', args: [file] }, e);
-    }
+    await openFile(root, file);
   };
 
   /** Runs a flow against a fresh snapshot, then refreshes the repo whatever the outcome. */
@@ -110,6 +114,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
           snap,
           pending: workspacePendingStore(ctx.workspaceState, repo.root),
           openMergeEditor: (file) => openMergeEditor(repo.root, file),
+          openFile: (file) => openFile(repo.root, file),
         });
       });
       if (result === 'conflicts') {
@@ -287,7 +292,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, deps: CommandDeps
     watchConflicts(
       conn,
       showNotice,
-      (repo) => workspacePendingStore(ctx.workspaceState, repo.root).get() !== undefined,
+      (repo) => workspacePendingStore(ctx.workspaceState, repo.root).get()?.branch,
       (line) => deps.output.appendLine(line),
     ),
   );

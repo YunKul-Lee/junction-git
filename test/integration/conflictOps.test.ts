@@ -1,10 +1,12 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkoutSide, conflictedFiles, leftoverMarkers } from '../../src/git/operations';
+import { checkoutSide, conflictedFiles, conflictStages, leftoverMarkers } from '../../src/git/operations';
 import { makeRepo, TestRepo } from '../helpers/repo';
 
 const NESTED = 'dir with space/파일.txt';
+const GLOB = 'app/[s]/page.tsx';
+const PLAIN = 'app/s/page.tsx';
 
 describe('conflict operations', () => {
   let repo: TestRepo;
@@ -97,5 +99,68 @@ describe('conflict operations', () => {
     const before = (await repo.sh('rev-parse', 'HEAD')).trim();
     await repo.commit('tricky', 'c.txt', '++ x\n<<<<<<< HEAD\n');
     expect(await leftoverMarkers(repo.git, before, 'HEAD')).toEqual(['c.txt']);
+  });
+  /** `app/[s]/page.tsx` is conflicted next to a tracked `app/s/page.tsx` that a glob pathspec would also match. */
+  async function globConflict(topicDeletes: boolean): Promise<void> {
+    await repo.commit('glob base', GLOB, 'base\n');
+    await repo.commit('plain', PLAIN, 'plain\n');
+    await repo.sh('switch', '-c', 'topic');
+    if (topicDeletes) {
+      await repo.sh('rm', '-q', '--', `:(literal)${GLOB}`);
+      await repo.sh('commit', '-m', 'topic deletes');
+    } else {
+      await repo.commit('topic edit', GLOB, 'topic\n');
+    }
+    await repo.sh('switch', 'develop');
+    await repo.commit('develop edit', GLOB, 'develop\n');
+    await expect(repo.sh('merge', 'topic')).rejects.toBeDefined();
+    expect(await conflictedFiles(repo.git)).toEqual([GLOB]);
+  }
+  const untouched = async (): Promise<void> => {
+    expect(await read(PLAIN)).toBe('plain\n');
+    expect((await repo.sh('status', '--porcelain', '--', ':(literal)' + PLAIN)).trim()).toBe('');
+  };
+
+  it('checkoutSide treats glob characters literally when deleting', async () => {
+    await globConflict(true);
+    expect(await checkoutSide(repo.git, GLOB, 'theirs')).toBe('deleted');
+    expect(await exists(GLOB)).toBe(false);
+    await untouched();
+  });
+
+  it('checkoutSide treats glob characters literally when checking out', async () => {
+    await globConflict(false);
+    expect(await checkoutSide(repo.git, GLOB, 'theirs')).toBe('kept');
+    expect(await read(GLOB)).toBe('topic\n');
+    expect(await conflictedFiles(repo.git)).toEqual([]);
+    await untouched();
+  });
+
+  it('checkoutSide checkout path does not overwrite an edited glob-matching file', async () => {
+    await globConflict(false);
+    await fs.writeFile(path.join(repo.dir, PLAIN), 'edited\n');
+    expect(await checkoutSide(repo.git, GLOB, 'theirs')).toBe('kept');
+    expect(await read(PLAIN)).toBe('edited\n');
+    expect((await repo.sh('diff', '--cached', '--name-only')).trim()).toBe(GLOB);
+  });
+
+  it('conflictStages reports which sides have a version', async () => {
+    await globConflict(true);
+    expect([...(await conflictStages(repo.git, GLOB))].sort()).toEqual([1, 2]);
+    expect([...(await conflictStages(repo.git, PLAIN))]).toEqual([]);
+  });
+
+  it('leftoverMarkers unquotes names git C-quotes', async () => {
+    const name = 'q"uote\\back.txt';
+    const before = (await repo.sh('rev-parse', 'HEAD')).trim();
+    await repo.commit('markers', name, '<<<<<<< HEAD\n');
+    expect(await leftoverMarkers(repo.git, before, 'HEAD')).toEqual([name]);
+  });
+
+  it('leftoverMarkers unquotes octal escapes and tabs', async () => {
+    const name = 'tab\there\x01.txt';
+    const before = (await repo.sh('rev-parse', 'HEAD')).trim();
+    await repo.commit('markers', name, '<<<<<<< HEAD\n');
+    expect(await leftoverMarkers(repo.git, before, 'HEAD')).toEqual([name]);
   });
 });

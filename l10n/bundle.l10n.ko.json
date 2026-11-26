@@ -113,6 +113,7 @@
   "Replace": "바꾸기",
   "Could not resolve {0}.": "{0}을(를) 해결하지 못했습니다.",
   "Could not open {0}.": "{0}을(를) 열지 못했습니다.",
+  "{0} was deleted on one side. Edit or delete the file, then stage it.": "{0}은(는) 한쪽에서 삭제되었습니다. 파일을 수정하거나 삭제한 다음 스테이징하세요.",
   "Loading conflicts…": "충돌 목록을 불러오는 중…",
   "{0} conflicted files left.": "충돌한 파일이 {0}개 남았습니다.",
   "Next File": "다음 파일",

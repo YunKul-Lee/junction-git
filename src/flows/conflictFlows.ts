@@ -3,7 +3,9 @@ import { abortFlow, MergeResult } from './mergeFlows';
 import type { PushCtx } from './pushFlows';
 
 export interface ConflictCtx extends PushCtx {
+  /** Both open the file and never reject. */
   openMergeEditor(file: string): Promise<void>;
+  openFile(file: string): Promise<void>;
 }
 
 type Op = 'merge' | 'rebase' | 'none';
@@ -46,7 +48,16 @@ export async function conflictListFlow(c: ConflictCtx): Promise<MergeResult> {
     return 'cancelled';
   }
   if (picked.kind === 'file') {
-    await c.openMergeEditor(picked.file);
+    const file = picked.file;
+    // The Merge Editor needs both sides, and git.openMergeEditor does not fail when one is missing.
+    // If the stages cannot be read, the Merge Editor is still tried.
+    const stages = await ops.conflictStages(git, file).catch(() => new Set<number>());
+    if (stages.size > 0 && !(stages.has(2) && stages.has(3))) {
+      ui.info({ key: '{0} was deleted on one side. Edit or delete the file, then stage it.', args: [file] });
+      await c.openFile(file);
+    } else {
+      await c.openMergeEditor(file);
+    }
     return 'done';
   }
   if (picked.kind === 'abort') {
